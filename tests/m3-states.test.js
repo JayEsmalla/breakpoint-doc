@@ -22,7 +22,7 @@ const pageHtml = `<!doctype html><meta charset="utf-8"><style>body{margin:0}.hid
     onclick="fetch('/mutate',{method:'POST'})">Delete account</button>
   <div id="deletePanel" class="hidden">bad</div>
   <button id="networkBtn" aria-expanded="false" aria-controls="networkPanel"
-    onclick="fetch('/mutate',{method:'POST'}).catch(()=>{});this.setAttribute('aria-expanded','true');document.getElementById('networkPanel').style.display='block'">More options</button>
+    onclick="fetch('/mutate',{method:'POST'}).catch(()=>{});setTimeout(()=>fetch('/mutate',{method:'POST'}).catch(()=>{}),150);this.setAttribute('aria-expanded','true');document.getElementById('networkPanel').style.display='block'">More options</button>
   <section id="networkPanel" class="hidden">More</section>
   <button id="bugBtn" aria-expanded="false" aria-controls="bugPanel" onclick="throw new Error('state crash')">Open broken panel</button>
   <div id="bugPanel" class="hidden">Not reachable</div>
@@ -59,7 +59,8 @@ test('opt-in exploration safely inspects menu, tab and accordion with reproducib
     assert.ok(menu,JSON.stringify(scan.findings));
     assert.equal(menu.confidence,'suspected');
     assert.deepEqual(menu.reproduction.actions,[{type:'click',selector:'#menuBtn',kind:'menu'}]);
-    assert.equal(hits.some(h=>h.method !== 'GET'),false,'no state-changing network requests may reach the server');
+    await new Promise(resolve=>setTimeout(resolve,300));
+    assert.equal(hits.some(h=>h.method !== 'GET'),false,'immediate and delayed state-changing network requests must never reach the server');
     assert.equal(hits.some(h=>h.url === '/checkout'),false);
     assert.equal(scan.states.some(s=>s.statePath.includes('deleteBtn') || s.statePath.includes('submitBtn')),false);
   } finally {await new Promise(resolve=>server.close(resolve));}

@@ -66,7 +66,7 @@ export async function inspectSafeControls(page, {targetUrl, route, width, limit,
   const toCheck = candidates.slice(0,Math.max(0,limit));
   const remaining = candidates.slice(toCheck.length);
   for (const candidate of remaining) skipped.push({route,width,selector:candidate.selector,reason:'State budget exhausted'});
-  for (const [index,candidate] of toCheck.entries()) {
+  for (const candidate of toCheck) {
     const description = candidate.kind + ':' + candidate.selector;
     const actions = [{type:'click',selector:candidate.selector,kind:candidate.kind}];
     let blockedRequests=0;
@@ -75,13 +75,14 @@ export async function inspectSafeControls(page, {targetUrl, route, width, limit,
     let dialog;
     let pageError;
     const runtimeErrors = [];
+    let actionPage;
     try {
-      // A clean baseline per candidate; do not combine stateful clicks accidentally.
-      if (index > 0) {
-        if (typeof htmlContent === 'string') await page.setContent(htmlContent,{waitUntil:'domcontentloaded',timeout:Math.min(timeout,8000)});
-        else await page.reload({waitUntil:'domcontentloaded',timeout:Math.min(timeout,8000)});
-      }
-      const before=await stateValue(page,candidate);
+      // Every action gets a disposable page. Keep network interception installed
+      // until the page is CLOSED so delayed timers cannot send requests later.
+      actionPage = await page.context().newPage();
+      if (typeof htmlContent === 'string') await actionPage.setContent(htmlContent,{waitUntil:'domcontentloaded',timeout:Math.min(timeout,8000)});
+      else await actionPage.goto(targetUrl,{waitUntil:'domcontentloaded',timeout:Math.min(timeout,8000)});
+      const before=await stateValue(actionPage,candidate);
       listener = routeRequest => { blockedRequests++; return routeRequest.abort('blockedbyclient'); };
       popup = newPage => newPage.close().catch(() => {});
       dialog = prompt => prompt.dismiss().catch(() => {});
@@ -90,41 +91,37 @@ export async function inspectSafeControls(page, {targetUrl, route, width, limit,
           message:'Uncaught error during '+candidate.kind+' interaction: '+scrub(error.message),
           suggestion:'Inspect this interaction handler and the browser console.'});
       };
-      page.on('popup',popup); page.on('dialog',dialog); page.on('pageerror',pageError);
-      await page.route('**/*',listener);
-      try {
-        await page.locator(candidate.selector).click({timeout:Math.min(timeout,2500)});
-        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        const after=await stateValue(page,candidate);
-        if (new URL(page.url()).pathname !== route ||
+      actionPage.on('popup',popup); actionPage.on('dialog',dialog); actionPage.on('pageerror',pageError);
+      await actionPage.route('**/*',listener);
+      {
+        await actionPage.locator(candidate.selector).click({timeout:Math.min(timeout,2500)});
+        await actionPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const after=await stateValue(actionPage,candidate);
+        if (new URL(actionPage.url()).pathname !== route ||
             (JSON.stringify(before) === JSON.stringify(after) && !runtimeErrors.length)) {
           skipped.push({route,width,selector:candidate.selector,reason:'No observable reversible state transition'});
           continue;
         }
         const statePath=description;
-        const diagnostic=await page.evaluate(collectDiagnostics);
+        const diagnostic=await actionPage.evaluate(collectDiagnostics);
         diagnostic.issues=decorateIssues([...diagnostic.issues,...runtimeErrors],targetUrl,disabledRules,severityOverrides,statePath)
           .map(item=>({...item,confidence:'suspected',reproduction:{...item.reproduction,route,statePath,actions}}));
         const screenshotName = prefix+'state-'+width+'-'+createHash('sha256').update(statePath).digest('hex').slice(0,10)+'.png';
         let screenshot=null;
         if (screenshots) {
           try {
-            await page.screenshot({path:path.join(output,screenshotName),fullPage:false,
+            await actionPage.screenshot({path:path.join(output,screenshotName),fullPage:false,
               animations:'disabled',timeout:Math.min(timeout,4000)});
             screenshot=screenshotName;
           } catch {/* screenshots are best-effort */}
         }
         states.push({route,width,statePath,actions,blockedRequests,status:'complete',screenshot,
           ...diagnostic});
-      } finally {
-        await page.unroute('**/*',listener).catch(() => {});
-        if (popup) page.off('popup',popup);
-        if (dialog) page.off('dialog',dialog);
-        if (pageError) page.off('pageerror',pageError);
-        listener=null; popup=null; dialog=null;
       }
     } catch(error) {
       skipped.push({route,width,selector:candidate.selector,reason:'Action failed or was blocked: '+scrub(error.message)});
+    } finally {
+      await actionPage?.close().catch(() => {});
     }
   }
   return {states,skipped,candidates:candidates.length,omitted:found.omitted};

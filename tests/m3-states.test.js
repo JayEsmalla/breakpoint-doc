@@ -15,12 +15,17 @@ const pageHtml = `<!doctype html><meta charset="utf-8"><style>body{margin:0}.hid
     onclick="this.setAttribute('aria-selected','true');document.getElementById('tabPanel').style.display='block'">Specifications</button>
   <section id="tabPanel" class="hidden">Details</section>
   <details id="faq"><summary>Frequently asked</summary><div>Answer</div></details>
+  <button id="dialogBtn" aria-haspopup="dialog" aria-controls="infoDialog" aria-expanded="false"
+    onclick="this.setAttribute('aria-expanded','true');document.getElementById('infoDialog').showModal()">Open dialog</button>
+  <dialog id="infoDialog">Hello from the dialog</dialog>
   <button id="deleteBtn" aria-expanded="false" aria-controls="deletePanel"
     onclick="fetch('/mutate',{method:'POST'})">Delete account</button>
   <div id="deletePanel" class="hidden">bad</div>
   <button id="networkBtn" aria-expanded="false" aria-controls="networkPanel"
     onclick="fetch('/mutate',{method:'POST'}).catch(()=>{});this.setAttribute('aria-expanded','true');document.getElementById('networkPanel').style.display='block'">More options</button>
   <section id="networkPanel" class="hidden">More</section>
+  <button id="bugBtn" aria-expanded="false" aria-controls="bugPanel" onclick="throw new Error('state crash')">Open broken panel</button>
+  <div id="bugPanel" class="hidden">Not reachable</div>
   <form action="/mutate" method="POST"><button id="submitBtn" aria-controls="submitPanel" aria-expanded="false">Open form</button></form>
   <div id="submitPanel"></div>
   <a href="/checkout">Checkout</a>`;
@@ -47,6 +52,9 @@ test('opt-in exploration safely inspects menu, tab and accordion with reproducib
     assert.ok(paths.includes('menu:#menuBtn'),JSON.stringify(paths));
     assert.ok(paths.includes('tab:#tabBtn'),JSON.stringify(paths));
     assert.ok(paths.includes('accordion:#faq > summary'),JSON.stringify(paths));
+    assert.ok(paths.includes('dialog:#dialogBtn'),JSON.stringify(paths));
+    assert.ok(paths.includes('menu:#bugBtn'),JSON.stringify(paths));
+    assert.ok(scan.findings.some(f=>f.statePath==='menu:#bugBtn' && f.ruleId==='javascript-error'));
     const menu=scan.findings.find(f=>f.route==='/' && f.statePath==='menu:#menuBtn' && f.ruleId==='page-overflow');
     assert.ok(menu,JSON.stringify(scan.findings));
     assert.equal(menu.confidence,'suspected');

@@ -43,6 +43,24 @@ test('explicitly approved routes are scanned, over-budget routes are transparent
     assert.ok(!hits.includes('/help'));
   });
 });
+
+
+test('discovery does not falsely mark an approved path skipped merely because of route-list order',async () => {
+  await serverRun((req,res) => {
+    res.setHeader('Content-Type','text/html');
+    res.end(req.url==='/'?'<a href="/shop">shop</a>':'<p>shop</p>');
+  },async base => {
+    const browser=await chromium.launch();
+    try {
+      const plan=planRoutes(base+'/', ['/help','/shop'],2);
+      const discovery=await discoverApproved(browser,base+'/',plan,{maxDepth:1});
+      assert.deepEqual(discovery.routes,['/','/shop']);
+      assert.equal(discovery.skipped.some(i=>i.path==='/shop'),false);
+      assert.equal(discovery.skipped.some(i=>i.path==='/help'),true);
+    } finally { await browser.close(); }
+  });
+});
+
 test('discovery only follows explicitly approved linked paths with bounded depth',async () => {
   const hits=[];
   await serverRun((req,res) => {

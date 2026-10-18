@@ -31,7 +31,8 @@ export async function discoverApproved(browser, target, plan, { maxDepth = 1, ti
   if (!Number.isInteger(maxDepth) || maxDepth < 0 || maxDepth > 3) throw new Error('--max-depth must be 0–3.');
   const ctx = await browser.newContext({ viewport:{width:390,height:900}, serviceWorkers:'block' });
   const reached = [];
-  const skipped = [...plan.skipped];
+  // Discovery tracks reachability independently of the explicit-route ordering.
+  const skipped = [];
   const queue = [{path: new URL(target).pathname, depth:0}];
   const seen = new Set();
   try {

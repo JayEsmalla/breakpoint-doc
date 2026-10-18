@@ -171,7 +171,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
         }
       }
       if (explore && (width === Math.min(...widths) || width === Math.max(...widths))) {
-        const budget = Math.min(4, Math.max(0, maxStates - attemptedStates));
+        const budget = Math.min(6, Math.max(0, maxStates - attemptedStates));
         try {
           const states = await inspectSafeControls(first.page, {
             targetUrl:routeTarget.href, route, width, limit:budget,
@@ -223,7 +223,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
     finding.transitions = adaptive.transitions[finding.id] || [];
     finding.observedRanges = adaptive.observedRanges[finding.id] || [];
   }
-  const status = completed === 0 ? 'error' : completed < viewports.length || selection.skipped.length || warnings.length || viewports.some(v => v.truncated) || stateViews.some(v => v.truncated) || skippedActions.some(s => /budget exhausted/i.test(s.reason)) ? 'partial' :
+  const status = completed === 0 ? 'error' : completed < viewports.length || selection.skipped.length || warnings.length || viewports.some(v => v.truncated) || stateViews.some(v => v.truncated) || skippedActions.length > 0 ? 'partial' :
     findings.length ? 'issues' : 'clean';
   const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.4.0-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,

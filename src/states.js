@@ -4,8 +4,6 @@ import { scrub } from './doctor.js';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
-const DANGEROUS = /\b(delete|remove|logout|log out|sign out|submit|save|pay|checkout|purchase|publish|transfer|send|invite|reset|unsubscribe|confirm|upload|create|cancel order)\b/i;
-
 // Only controls that explicitly communicate a reversible ARIA or native disclosure
 // relationship. Generic buttons and links are intentionally never clicked.
 export async function findSafeControls(page) {
@@ -14,8 +12,8 @@ export async function findSafeControls(page) {
     const candidates = document.querySelectorAll('button[aria-controls], [role="tab"][aria-controls], details[id] > summary');
     const seen = new Set();
     const results = [];
-    for (const element of candidates) {
-      if (results.length >= 30) break;
+    let omitted = 0;
+    for (const element of [...candidates].slice(0,1500)) {
       if (element.closest('form,[inert],[aria-hidden="true"],[hidden]') || element.disabled) continue;
       const label = ((element.textContent || '') + ' ' + (element.getAttribute('aria-label') || '') + ' ' + (element.id || '')).slice(0,250);
       if (dangerous.test(label)) continue;
@@ -35,11 +33,12 @@ export async function findSafeControls(page) {
         element.tagName.toLowerCase() + '[aria-controls="' + CSS.escape(element.getAttribute('aria-controls')) + '"]';
       if (seen.has(selector) || document.querySelectorAll(selector).length !== 1) continue;
       seen.add(selector);
+      if (results.length >= 30) { omitted++; continue; }
       results.push({ selector, kind: summary ? 'accordion' : tab ? 'tab' :
         element.getAttribute('aria-haspopup') === 'dialog' ? 'dialog' : 'menu',
         target: summary ? element.parentElement.id : element.getAttribute('aria-controls') });
     }
-    return results;
+    return {controls:results,omitted:omitted + Math.max(0,candidates.length-1500)};
   });
 }
 async function stateValue(page, descriptor) {
@@ -60,8 +59,10 @@ async function stateValue(page, descriptor) {
 
 export async function inspectSafeControls(page, {targetUrl, route, width, limit, timeout = 15000,
   disabledRules = [], severityOverrides = {}, screenshots = false, output, prefix = '', htmlContent} = {}) {
-  const candidates = await findSafeControls(page);
+  const found = await findSafeControls(page);
+  const candidates = found.controls;
   const states = [], skipped = [];
+  if (found.omitted) skipped.push({route,width,reason:'Candidate discovery limit exceeded ('+found.omitted+' unclassified controls)'});
   const toCheck = candidates.slice(0,Math.max(0,limit));
   const remaining = candidates.slice(toCheck.length);
   for (const candidate of remaining) skipped.push({route,width,selector:candidate.selector,reason:'State budget exhausted'});
@@ -72,6 +73,8 @@ export async function inspectSafeControls(page, {targetUrl, route, width, limit,
     let listener;
     let popup;
     let dialog;
+    let pageError;
+    const runtimeErrors = [];
     try {
       // A clean baseline per candidate; do not combine stateful clicks accidentally.
       if (index > 0) {
@@ -82,20 +85,25 @@ export async function inspectSafeControls(page, {targetUrl, route, width, limit,
       listener = routeRequest => { blockedRequests++; return routeRequest.abort('blockedbyclient'); };
       popup = newPage => newPage.close().catch(() => {});
       dialog = prompt => prompt.dismiss().catch(() => {});
-      page.on('popup',popup); page.on('dialog',dialog);
+      pageError = error => {
+        if (runtimeErrors.length < 5) runtimeErrors.push({type:'javascript-error',severity:'high',selector:'window',
+          message:'Uncaught error during '+candidate.kind+' interaction: '+scrub(error.message),
+          suggestion:'Inspect this interaction handler and the browser console.'});
+      };
+      page.on('popup',popup); page.on('dialog',dialog); page.on('pageerror',pageError);
       await page.route('**/*',listener);
       try {
         await page.locator(candidate.selector).click({timeout:Math.min(timeout,2500)});
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const after=await stateValue(page,candidate);
         if (new URL(page.url()).pathname !== route ||
-            JSON.stringify(before) === JSON.stringify(after)) {
+            (JSON.stringify(before) === JSON.stringify(after) && !runtimeErrors.length)) {
           skipped.push({route,width,selector:candidate.selector,reason:'No observable reversible state transition'});
           continue;
         }
         const statePath=description;
         const diagnostic=await page.evaluate(collectDiagnostics);
-        diagnostic.issues=decorateIssues(diagnostic.issues,targetUrl,disabledRules,severityOverrides,statePath)
+        diagnostic.issues=decorateIssues([...diagnostic.issues,...runtimeErrors],targetUrl,disabledRules,severityOverrides,statePath)
           .map(item=>({...item,confidence:'suspected',reproduction:{...item.reproduction,route,statePath,actions}}));
         const screenshotName = prefix+'state-'+width+'-'+createHash('sha256').update(statePath).digest('hex').slice(0,10)+'.png';
         let screenshot=null;
@@ -112,11 +120,12 @@ export async function inspectSafeControls(page, {targetUrl, route, width, limit,
         await page.unroute('**/*',listener).catch(() => {});
         if (popup) page.off('popup',popup);
         if (dialog) page.off('dialog',dialog);
+        if (pageError) page.off('pageerror',pageError);
         listener=null; popup=null; dialog=null;
       }
     } catch(error) {
       skipped.push({route,width,selector:candidate.selector,reason:'Action failed or was blocked: '+scrub(error.message)});
     }
   }
-  return {states,skipped,candidates:candidates.length};
+  return {states,skipped,candidates:candidates.length,omitted:found.omitted};
 }

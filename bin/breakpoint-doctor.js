@@ -21,6 +21,12 @@ const HELP = [
   '  --disable-rules RULE,RULE              Suppress listed rule types',
   '  --severity RULE=LEVEL,RULE=LEVEL      high, medium, info, or off',
   '  --responsive                           Adaptive width discovery (M2)',
+  '  --routes /,/shop,/about               Explicitly approved same-origin paths',
+  '  --discover                            Follow links ONLY within approved routes',
+  '  --max-pages 5                         Maximum approved pages (1–20)',
+  '  --max-depth 1                         Discovery link depth (0–3)',
+  '  --explore                             Inspect safe semantic toggles (opt-in)',
+  '  --max-states 20                       Total UI states to inspect (1–40)',
   '  --help                                 Show this help',
   '',
   'Exit codes: 0 = no confirmed blocking issues, 1 = confirmed high/medium issues,',
@@ -42,13 +48,15 @@ export function parseArgs(argv) {
       throw new Error('Only HTTP(S) URLs without embedded credentials are supported.');
     }
   }
-  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: false, disabledRules: [], severityOverrides: {}, responsive: false };
+  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: false, disabledRules: [], severityOverrides: {}, responsive: false, routes: [], discover: false, explore: false, maxPages: 5, maxDepth: 1, maxStates: 20 };
   for (let i = urlText ? 2 : 1; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === '--no-screenshots') { args.screenshots = false; continue; }
     if (flag === '--strict-coverage') { args.strictCoverage = true; continue; }
     if (flag === '--responsive') { args.responsive = true; continue; }
-    if (!['--widths', '--out', '--timeout', '--disable-rules', '--severity'].includes(flag)) throw new Error('Unknown option: ' + flag);
+    if (flag === '--discover') { args.discover = true; continue; }
+    if (flag === '--explore') { args.explore = true; continue; }
+    if (!['--widths', '--out', '--timeout', '--disable-rules', '--severity', '--routes', '--max-pages', '--max-depth', '--max-states'].includes(flag)) throw new Error('Unknown option: ' + flag);
     const value = argv[++i];
     if (!value || value.startsWith('--')) throw new Error('Missing value for ' + flag);
     if (flag === '--widths') {
@@ -57,6 +65,14 @@ export function parseArgs(argv) {
       args.widths = [...new Set(widths)].sort((a, b) => a - b);
     }
     if (flag === '--out') args.out = value;
+    if (flag === '--routes') args.routes = value.split(',');
+    if (['--max-pages','--max-depth','--max-states'].includes(flag)) {
+      const number = Number(value);
+      const min = flag === '--max-depth' ? 0 : 1;
+      const max = flag === '--max-pages' ? 20 : flag === '--max-depth' ? 3 : 40;
+      if (!Number.isInteger(number) || number < min || number > max) throw new Error(flag + ' must be '+min+'–'+max+'.');
+      args[flag.slice(2).replace(/-([a-z])/g, (_,v) => v.toUpperCase())] = number;
+    }
     if (flag === '--timeout') {
       const ms = Number(value);
       if (!Number.isInteger(ms) || ms < 1000 || ms > 120000) throw new Error('--timeout must be 1000–120000 ms.');
@@ -76,6 +92,8 @@ export function parseArgs(argv) {
     }
   }
   if (command === 'doctor' && (args.strictCoverage || args.responsive || args.disabledRules.length || Object.keys(args.severityOverrides).length)) throw new Error('Those options apply only to scan.');
+  if (args.discover && !args.routes.length) throw new Error('--discover requires --routes with approved paths.');
+  if (command === 'doctor' && (args.routes.length || args.discover || args.explore || args.maxPages !== 5 || args.maxDepth !== 1 || args.maxStates !== 20)) throw new Error('Exploration options apply only to scan.');
   validateRules(args.disabledRules, args.severityOverrides);
   return args;
 }

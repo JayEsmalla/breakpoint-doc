@@ -8,6 +8,8 @@ import { decorateIssues, groupFindings } from './findings.js';
 import { publicUrl, scrub } from './doctor.js';
 import { discoverWidths } from './widths.js';
 import { RULES, validateRules } from './rules.js';
+import { planRoutes, discoverApproved } from './scope.js';
+import { createHash } from 'node:crypto';
 
 export const DEFAULT_WIDTHS = [320, 375, 390, 768, 1024, 1440];
 const MAX_EVENTS = 20;
@@ -75,8 +77,11 @@ async function snapshot(context, target, timeout, htmlContent) {
 }
 
 export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoint-report', timeout = 15000,
-  screenshots = true, htmlContent, disabledRules = [], severityOverrides = {}, responsive = false, strictCoverage = false } = {}) {
+  screenshots = true, htmlContent, disabledRules = [], severityOverrides = {}, responsive = false, strictCoverage = false,
+  routes = [], discover = false, maxPages = 5, maxDepth = 1, explore = false, maxStates = 20 } = {}) {
   const target = parseTarget(url);
+  const plan = planRoutes(target.href, routes, maxPages);
+  if (discover && !routes.length) throw new Error('--discover requires approved routes.');
   validateRules(disabledRules, severityOverrides);
   if (!Array.isArray(widths) || widths.length < 1 || widths.length > 30 || widths.some(w => !Number.isInteger(w) || w < 240 || w > 3840)) throw new Error('Invalid viewport widths.');
   const output = path.resolve(out);
@@ -89,20 +94,36 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   }
   const viewports = [];
   const warnings = [];
+  const selection = discover ? await discoverApproved(browser, target.href, plan, { maxDepth, timeout }) :
+    { routes: plan.selected, skipped: plan.skipped, discovered: plan.selected.map((path, depth) => ({path, depth:0})) };
+  const routeStats = selection.routes.map(route => ({path:route, checked:0, failed:0}));
   const started = Date.now();
-  async function inspect(width) {
-    const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1 });
+  async function inspect(width, route = target.pathname) {
+    const routeTarget = route === target.pathname ? target : new URL(route, target);
+    const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1, serviceWorkers:'block' });
+    await context.route('**/*', handler => {
+      const request = handler.request();
+      if (request.isNavigationRequest()) {
+        const candidate = new URL(request.url());
+        if (candidate.origin !== target.origin || candidate.pathname !== route || candidate.search) {
+          // Original single-page target may include explicitly supplied parameters.
+          if (!(route === target.pathname && candidate.origin === target.origin && candidate.pathname === target.pathname && candidate.search === target.search)) return handler.abort();
+        }
+      }
+      return handler.continue();
+    });
+    const prefix = selection.routes.length > 1 ? createHash('sha256').update(route).digest('hex').slice(0,8) + '-' : '';
     let first;
     try {
-      first = await snapshot(context, target, timeout, htmlContent);
+      first = await snapshot(context, routeTarget, timeout, htmlContent);
       const { diagnostics } = first;
-      diagnostics.issues = decorateIssues(diagnostics.issues, target.href, disabledRules, severityOverrides);
+      diagnostics.issues = decorateIssues(diagnostics.issues, routeTarget.href, disabledRules, severityOverrides);
       const confirmable = diagnostics.issues.filter(issue => issue.severity !== 'info');
       if (confirmable.length) {
         try {
-          const second = await snapshot(context, target, timeout, htmlContent);
+          const second = await snapshot(context, routeTarget, timeout, htmlContent);
           try {
-            const repeated = new Set(decorateIssues(second.diagnostics.issues, target.href, disabledRules, severityOverrides).map(issue => issue.id));
+            const repeated = new Set(decorateIssues(second.diagnostics.issues, routeTarget.href, disabledRules, severityOverrides).map(issue => issue.id));
             for (const issue of diagnostics.issues) {
               if (issue.severity !== 'info' && repeated.has(issue.id) && RULES[issue.type]?.autoConfirm) issue.confidence = 'confirmed';
             }
@@ -111,7 +132,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
       }
       let screenshot = null;
       if (screenshots) {
-        const filename = 'viewport-' + width + '.png';
+        const filename = prefix + 'viewport-' + width + '.png';
         try {
           const extent = await first.page.evaluate(() => ({
             width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight
@@ -130,7 +151,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
           const widthPx = Math.min(width - x, Math.max(100, Math.min(440, rect.width + 40)));
           const heightPx = Math.min(900 - y, Math.max(80, Math.min(300, rect.height + 40)));
           if (widthPx < 5 || heightPx < 5) continue;
-          const filename = 'evidence-' + width + '-' + index + '.png';
+          const filename = prefix + 'evidence-' + width + '-' + index + '.png';
           try {
             const locator = first.page.locator(issue.selector).first();
             await locator.evaluate(element => element.setAttribute('data-bp-evidence', ''));
@@ -144,9 +165,9 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
           } catch { /* A crop is optional evidence, not a scan failure. */ }
         }
       }
-      return { width, status: 'complete', screenshot, ...diagnostics };
+      return { width, route, statePath:'initial', status: 'complete', screenshot, ...diagnostics };
     } catch (error) {
-      return { width, status: 'error', screenshot: null, overflowPixels: 0, issues: [], error: scrub(error.message),
+      return { width, route, statePath:'initial', status: 'error', screenshot: null, overflowPixels: 0, issues: [], error: scrub(error.message),
         visitedElements: 0, truncated: false };
     } finally {
       await first?.page.close().catch(() => {});
@@ -155,32 +176,39 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   }
   let adaptive = null;
   try {
-    if (responsive) {
-      adaptive = await discoverWidths({ initial: widths, inspect, maxSamples: 30,
-        budgetExceeded: () => Date.now() - started > 180000 });
-      viewports.push(...adaptive.viewports);
-      if (adaptive.exhausted) warnings.push('Adaptive width search budget exhausted; some transitions remain approximate.');
-    } else {
+    for (const route of selection.routes) {
+      if (responsive && route === selection.routes[0]) {
+        adaptive = await discoverWidths({ initial: widths, inspect: width => inspect(width, route), maxSamples: 30,
+          budgetExceeded: () => Date.now() - started > 180000 });
+        viewports.push(...adaptive.viewports);
+        if (adaptive.exhausted) warnings.push('Adaptive width search budget exhausted; some transitions remain approximate.');
+        continue;
+      }
       for (const width of [...new Set(widths)].sort((a,b) => a-b)) {
         if (Date.now() - started > 180000) {
-          viewports.push({ width, status: 'error', issues: [], error: 'Total scan time budget exceeded.', overflowPixels: 0, visitedElements: 0, truncated: false });
+          viewports.push({ width, route, statePath:'initial', status: 'error', issues: [], error: 'Total scan time budget exceeded.', overflowPixels: 0, visitedElements: 0, truncated: false });
           continue;
         }
-        viewports.push(await inspect(width));
+        viewports.push(await inspect(width, route));
       }
     }
   } finally { await browser.close(); }
   const completed = viewports.filter(v => v.status === 'complete').length;
+  for (const entry of routeStats) {
+    entry.checked = viewports.filter(v => v.route === entry.path && v.status === 'complete').length;
+    entry.failed = viewports.filter(v => v.route === entry.path && v.status === 'error').length;
+  }
   const findings = groupFindings(viewports);
   if (adaptive) for (const finding of findings) {
     finding.transitions = adaptive.transitions[finding.id] || [];
     finding.observedRanges = adaptive.observedRanges[finding.id] || [];
   }
-  const status = completed === 0 ? 'error' : completed < viewports.length || warnings.length || viewports.some(v => v.truncated) ? 'partial' :
+  const status = completed === 0 ? 'error' : completed < viewports.length || selection.skipped.length || warnings.length || viewports.some(v => v.truncated) ? 'partial' :
     findings.length ? 'issues' : 'clean';
   const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.4.0-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,
     warnings, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
+    exploration: {enabled:explore, mode:discover ? 'approved-link-discovery' : 'explicit-routes', routes:routeStats, skippedRoutes:selection.skipped, maxPages, maxDepth, maxStates},
     coverage: { completed, requested: viewports.length, widths: viewports.map(v => v.width), durationMs: Date.now() - started },
     findings, viewports };
   await writeFile(path.join(output, 'report.json'), JSON.stringify(data, null, 2), 'utf8');

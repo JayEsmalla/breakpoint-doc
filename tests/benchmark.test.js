@@ -15,6 +15,8 @@ test('reviewed benchmark counts TP FP FN TN per rule with no fabricated confiden
   assert.equal(result.perRule['page-overflow'].precision,0.5);
   assert.equal(result.perRule['page-overflow'].recall,0.5);
   assert.equal(result.perRule['broken-image'].precision,null);
+  assert.equal(result.perRule['page-overflow'].f1,0.5);
+  assert.equal(scoreReviewedCases([{id:'miss',ruleId:'broken-image',expected:true,detected:false,source:'synthetic'}]).perRule['broken-image'].f1,0);
   assert.ok(result.sources.every(s=>s==='synthetic'));
 });
 test('benchmark rejects duplicate and invalid review labels',()=>{

@@ -22,11 +22,12 @@ const makeScan=(findings=[], opts={})=>({
   ruleConfiguration:{available:['page-overflow','javascript-error','small-target'],disabled:[],severityOverrides:{}},
   exploration:{skippedRoutes:[],skippedActions:[]}
 });
-test('CLI exposes version without installation or network',()=>{
+test('CLI exposes version without installation or network',async ()=>{
   assert.equal(parseArgs(['--version']).version,true);
   const cli=spawnSync(process.execPath,[path.resolve('bin/breakpoint-doctor.js'),'--version'],{encoding:'utf8'});
   assert.equal(cli.status,0,cli.stderr);
-  assert.match(cli.stdout,/0\.6\.0-alpha\.1/);
+  const pkg=JSON.parse((await import('node:fs')).readFileSync(path.resolve('package.json'),'utf8'));
+  assert.equal(cli.stdout.trim(),pkg.version);
 });
 test('explicit approval, new/old/resolved and policy gating',()=>{
   const original=makeScan([found('page-overflow','#wide'),found('small-target','#tiny','suspected','info')]);

@@ -1,5 +1,7 @@
 # Development roadmap — Breakpoint Doctor
 
+**v0.7 stabilization:** See [STABILIZATION_V07.md](STABILIZATION_V07.md) for implemented reliability work and independently unverified release gates.
+
 Legend: [x] implemented and tested locally; [ ] outstanding. Implementation checkboxes do **not** imply a production-ready release. See [PRODUCT_STRATEGY.md](PRODUCT_STRATEGY.md), [DETECTION_RELIABILITY.md](DETECTION_RELIABILITY.md), and [DEVELOPER_EXPERIENCE.md](DEVELOPER_EXPERIENCE.md).
 
 ## M0 — Foundation

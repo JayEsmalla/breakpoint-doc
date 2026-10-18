@@ -6,7 +6,7 @@ function rate(n,d) { return d ? Number((n/d).toFixed(4)) : null; }
 function summarize(stats) {
   return { ...stats,precision:rate(stats.tp,stats.tp+stats.fp),
     recall:rate(stats.tp,stats.tp+stats.fn),
-    f1:stats.tp ? rate(2*stats.tp,2*stats.tp+stats.fp+stats.fn) : null };
+    f1:rate(2*stats.tp,2*stats.tp+stats.fp+stats.fn) };
 }
 export function scoreReviewedCases(cases) {
   if (!Array.isArray(cases) || !cases.length) throw new Error('Benchmark requires at least one reviewed case.');

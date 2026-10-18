@@ -27,6 +27,8 @@ jobs:
       - name: Install Linux browser OS dependencies
         if: runner.os == 'Linux'
         run: npx playwright install-deps chromium
+      - name: Install Chromium for automated tests
+        run: npx playwright install chromium --only-shell
       - name: Validate syntax
         run: npm run check
       - name: Run automated tests

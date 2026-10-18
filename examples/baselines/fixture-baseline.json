@@ -1,0 +1,18 @@
+{
+  "kind": "breakpoint-doctor-approved-baseline",
+  "baselineSchema": 1,
+  "scanSchema": 1,
+  "approvedAt": "2026-10-18T18:53:19.910Z",
+  "source": {
+    "toolVersion": "0.5.0-alpha.1",
+    "origin": "http://127.0.0.1:45271",
+    "pathname": "/"
+  },
+  "coverage": [
+    "/about|390|initial",
+    "/about|768|initial",
+    "/|390|initial",
+    "/|768|initial"
+  ],
+  "findings": []
+}

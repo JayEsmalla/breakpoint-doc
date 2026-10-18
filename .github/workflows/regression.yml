@@ -1,0 +1,52 @@
+name: Frontend QA regression example
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Start approved local fixture
+        run: |
+          node examples/fixture-server.js > /tmp/breakpoint-fixture.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:45271/ | grep -q 'Breakpoint Doctor example'; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/breakpoint-fixture.log
+          exit 2
+      - name: Scan fixture
+        id: scan
+        continue-on-error: true
+        run: |
+          node bin/breakpoint-doctor.js scan http://127.0.0.1:45271/ \
+            --routes /,/about --widths 390,768 --no-screenshots --strict-coverage \
+            --out breakpoint-report
+      - name: Compare against reviewed baseline
+        if: always()
+        run: |
+          if [ ! -f breakpoint-report/report.json ]; then
+            echo "Scanner failed before producing a report"
+            exit 2
+          fi
+          node bin/breakpoint-doctor.js compare \
+            examples/baselines/fixture-baseline.json breakpoint-report/report.json \
+            --out breakpoint-report/comparison.json --fail-on new-confirmed-high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: breakpoint-doctor-regression
+          path: breakpoint-report/
+          retention-days: 7
+          if-no-files-found: warn

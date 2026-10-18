@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { collectDiagnostics } from './detectors.js';
@@ -14,6 +14,16 @@ import { inspectSafeControls } from './states.js';
 
 export const DEFAULT_WIDTHS = [320, 375, 390, 768, 1024, 1440];
 const MAX_EVENTS = 20;
+// Avoid mixing evidence from separate runs when --out is reused. Remove only
+// files owned by this scanner, never arbitrary user files or subdirectories.
+const OWNED_ARTIFACT = /^(?:report\.json|index\.html|(?:[a-f0-9]{8}-)?(?:viewport-\d+|evidence-\d+-\d+|state-\d+-[a-f0-9]{10})\.png)$/;
+async function clearPreviousArtifacts(folder) {
+  const names = await readdir(folder);
+  await Promise.all(names.filter(name => OWNED_ARTIFACT.test(name))
+    .map(name => unlink(path.join(folder,name)).catch(error => {
+      if (error.code !== 'ENOENT') throw error;
+    })));
+}
 
 function parseTarget(url) {
   const target = new URL(url);
@@ -99,6 +109,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   const watchdog = setTimeout(() => browser.close().catch(() => {}), maxDurationMs);
   watchdog.unref?.();
   try {
+  await clearPreviousArtifacts(output);
   const viewports = [];
   const stateViews = [];
   const skippedActions = [];

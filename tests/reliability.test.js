@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { scanSite } from '../src/scanner.js';
@@ -26,6 +26,21 @@ test('privacy, options and missing-browser preflight', async () => {
   const setup = await checkSetup({out:await output(),browserPath:'/nonexistent/browser'});
   assert.equal(setup.ok,false);
   assert.ok(setup.checks.some(c => !c.ok && c.guidance.includes('playwright install')));
+});
+
+test('reruns remove stale scanner artifacts while preserving unrelated files',async ()=>{
+  const out=await output();
+  await writeFile(path.join(out,'viewport-320.png'),'stale screenshot');
+  await writeFile(path.join(out,'evidence-320-0.png'),'stale crop');
+  await writeFile(path.join(out,'state-390-abcdef1234.png'),'stale state');
+  await writeFile(path.join(out,'notes.txt'),'user notes');
+  const result=await scanSite({url:'http://fixture.invalid/',htmlContent:'<p>healthy</p>',
+    widths:[390],screenshots:false,out});
+  assert.equal(result.status,'clean');
+  for (const file of ['viewport-320.png','evidence-320-0.png','state-390-abcdef1234.png'])
+    await assert.rejects(stat(path.join(out,file)),/ENOENT/);
+  assert.equal(await readFile(path.join(out,'notes.txt'),'utf8'),'user notes');
+  assert.equal(JSON.parse(await readFile(path.join(out,'report.json'),'utf8')).viewports.length,1);
 });
 
 test('real HTTP navigation, confirmed defect, clean width, URL redaction', async () => {

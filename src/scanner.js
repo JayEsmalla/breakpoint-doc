@@ -79,7 +79,7 @@ async function snapshot(context, target, timeout, htmlContent) {
 
 export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoint-report', timeout = 15000,
   screenshots = true, htmlContent, disabledRules = [], severityOverrides = {}, responsive = false, strictCoverage = false,
-  routes = [], discover = false, maxPages = 5, maxDepth = 1, explore = false, maxStates = 20, maxDurationMs = 180000 } = {}) {
+  routes = [], discover = false, maxPages = 5, maxDepth = 1, explore = false, maxStates = 20, maxDurationMs = 180000, onProgress } = {}) {
   const target = parseTarget(url);
   const plan = planRoutes(target.href, routes, maxPages);
   if (discover && !routes.length) throw new Error('--discover requires approved routes.');
@@ -105,12 +105,16 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   let attemptedStates = 0;
   const warnings = [];
   const notices = [];
+  const emit = event => { try { onProgress?.(event); } catch { /* progress handlers must not invalidate results */ } };
   const selection = discover ? await discoverApproved(browser, target.href, plan, { maxDepth, timeout }) :
     { routes: plan.selected, skipped: plan.skipped, discovered: plan.selected.map((path, depth) => ({path, depth:0})) };
   const routeStats = selection.routes.map(route => ({path:route, checked:0, failed:0}));
   async function inspect(width, route = target.pathname) {
-    if (Date.now() - started >= maxDurationMs) return {width, route, statePath:'initial', status:'error', screenshot:null,
-      issues:[], error:'Total scan time budget exceeded.',overflowPixels:0,visitedElements:0,truncated:false};
+    if (Date.now() - started >= maxDurationMs) {
+      emit({phase:'viewport',route,width,status:'error',issues:0});
+      return {width, route, statePath:'initial', status:'error', screenshot:null,
+        issues:[], error:'Total scan time budget exceeded.',overflowPixels:0,visitedElements:0,truncated:false};
+    }
     const routeTarget = route === target.pathname ? target : new URL(route, target);
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1, serviceWorkers:'block' });
     if (explore) await context.routeWebSocket('**/*', socket => socket.close());
@@ -192,8 +196,10 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
           warnings.push(route + ' at ' + width + 'px: UI exploration failed: ' + scrub(error.message));
         }
       }
+      emit({phase:'viewport',route,width,status:'complete',issues:diagnostics.issues.length});
       return { width, route, statePath:'initial', status: 'complete', screenshot, ...diagnostics };
     } catch (error) {
+      emit({phase:'viewport',route,width,status:'error',issues:0});
       return { width, route, statePath:'initial', status: 'error', screenshot: null, overflowPixels: 0, issues: [], error: scrub(error.message),
         visitedElements: 0, truncated: false };
     } finally {

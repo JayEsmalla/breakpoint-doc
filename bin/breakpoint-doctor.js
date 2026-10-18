@@ -199,8 +199,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       for (const check of result.checks) console.log((check.ok ? '[ok] ' : '[FAIL] ') + check.name + (check.guidance ? ': ' + check.guidance : ''));
       process.exitCode = result.ok ? 0 : 2;
     } else {
-      const result = await scanSite(args);
-      for (const viewport of result.viewports) console.log('[' + viewport.status + '] ' + viewport.width + 'px: ' + viewport.issues.length + ' observations' + (viewport.error ? ' - ' + viewport.error : ''));
+      const result = await scanSite({...args,onProgress: event => {
+        if (event.phase === 'viewport') console.log('['+event.status+'] '+event.route+' @ '+event.width+'px · '+event.issues+' observations');
+      }});
       console.log('Scan: ' + result.status + ' · ' + (result.findings?.length ?? 0) + ' grouped findings');
       console.log('Report: ' + result.reportPath);
       if (args.open) openLocalReport(result.reportPath);

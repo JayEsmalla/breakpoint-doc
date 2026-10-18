@@ -56,6 +56,19 @@ test('HTML reports escape untrusted page metadata', () => {
   assert.ok(html.includes('a=&lt;script&gt;'));
 });
 
+test('progress hooks report checked widths and cannot break the scan', async () => {
+  const events=[];
+  const out=await mkdtemp(path.join(tmpdir(),'bd-progress-'));
+  const report=await scanSite({url:'http://fixture.invalid/',htmlContent:'<!doctype html><p>stable</p>',
+    widths:[320,768],screenshots:false,out,onProgress:event=>{
+      events.push(event);
+      if (event.width === 320) throw new Error('callback errors cannot break scanning');
+    }});
+  assert.equal(report.coverage.completed,2);
+  assert.deepEqual(events.map(e=>e.width),[320,768]);
+  assert.ok(events.every(e=>e.status==='complete'));
+});
+
 test('real Chromium detects overflow and tiny targets, clean fixture stays clean', async () => {
   const output = await mkdtemp(path.join(tmpdir(),'breakpoint-doctor-'));
   const badHtml = await readFile(path.join(fixtures, 'broken.html'), 'utf8');

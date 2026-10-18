@@ -153,6 +153,9 @@ export function parseArgs(argv) {
       args.disabledRules = [...new Set(ruleNames)];
     }
   }
+  if (supplied.has('--strict-coverage') && supplied.has('--allow-incomplete')) {
+    throw new Error('Choose either --strict-coverage or --allow-incomplete; both cannot be combined.');
+  }
   if (args.profile === 'quick') {
     if (!supplied.has('--widths')) args.widths = [320,390,768,1440];
     if (!supplied.has('--no-screenshots')) args.screenshots = false;

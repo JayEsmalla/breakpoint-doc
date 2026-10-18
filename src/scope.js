@@ -1,4 +1,4 @@
-import { publicUrl } from './doctor.js';
+import { publicUrl, scrub } from './doctor.js';
 
 // No inferred navigation. Every visited page must be an explicitly approved path.
 const RISKY = /(?:^|[/-])(logout|signout|delete|remove|destroy|checkout|purchase|pay|payment|unsubscribe|reset|confirm|order|submit|publish|invite|transfer|upload|admin)(?:$|[/-])/i;
@@ -39,7 +39,9 @@ export async function discoverApproved(browser, target, plan, { maxDepth = 1, ti
     // Only pre-approved paths can ever be page navigations. Passive assets remain normal.
     await ctx.route('**/*', route => {
       const request = route.request();
-      if (request.isNavigationRequest() && request.frame() === ctx.pages()[0]?.mainFrame()) {
+      // Frame ownership may not yet exist when an initial navigation is intercepted.
+      // Restrict every document navigation, including frames, to approved paths.
+      if (request.isNavigationRequest()) {
         try {
           const url = new URL(request.url());
           if (url.origin !== plan.origin || !plan.allowed.has(url.pathname) || url.search) return route.abort();
@@ -67,8 +69,8 @@ export async function discoverApproved(browser, target, plan, { maxDepth = 1, ti
           } catch { continue; }
           if (!seen.has(next) && !queue.some(q => q.path === next)) queue.push({path: next, depth:item.depth+1});
         }
-      } catch {
-        skipped.push({path:item.path,reason:'Approved route could not be loaded'});
+      } catch (error) {
+        skipped.push({path:item.path,reason:'Approved route could not be loaded: '+scrub(error.message)});
       }
     }
     const reachedSet = new Set(reached.map(x=>x.path));

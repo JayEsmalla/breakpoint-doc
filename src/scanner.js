@@ -10,6 +10,7 @@ import { discoverWidths } from './widths.js';
 import { RULES, validateRules } from './rules.js';
 import { planRoutes, discoverApproved } from './scope.js';
 import { createHash } from 'node:crypto';
+import { inspectSafeControls } from './states.js';
 
 export const DEFAULT_WIDTHS = [320, 375, 390, 768, 1024, 1440];
 const MAX_EVENTS = 20;
@@ -93,6 +94,9 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
     throw new Error('Chromium could not launch. Run: npx playwright install chromium. ' + scrub(error.message));
   }
   const viewports = [];
+  const stateViews = [];
+  const skippedActions = [];
+  let attemptedStates = 0;
   const warnings = [];
   const selection = discover ? await discoverApproved(browser, target.href, plan, { maxDepth, timeout }) :
     { routes: plan.selected, skipped: plan.skipped, discovered: plan.selected.map((path, depth) => ({path, depth:0})) };
@@ -101,6 +105,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   async function inspect(width, route = target.pathname) {
     const routeTarget = route === target.pathname ? target : new URL(route, target);
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1, serviceWorkers:'block' });
+    if (explore) await context.routeWebSocket('**/*', socket => socket.close());
     await context.route('**/*', handler => {
       const request = handler.request();
       if (request.isNavigationRequest()) {
@@ -165,6 +170,20 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
           } catch { /* A crop is optional evidence, not a scan failure. */ }
         }
       }
+      if (explore && (width === Math.min(...widths) || width === Math.max(...widths))) {
+        const budget = Math.min(4, Math.max(0, maxStates - attemptedStates));
+        try {
+          const states = await inspectSafeControls(first.page, {
+            targetUrl:routeTarget.href, route, width, limit:budget,
+            timeout, disabledRules, severityOverrides, screenshots, output, prefix, htmlContent
+          });
+          attemptedStates += Math.min(budget, states.candidates);
+          stateViews.push(...states.states);
+          skippedActions.push(...states.skipped);
+        } catch (error) {
+          warnings.push(route + ' at ' + width + 'px: UI exploration failed: ' + scrub(error.message));
+        }
+      }
       return { width, route, statePath:'initial', status: 'complete', screenshot, ...diagnostics };
     } catch (error) {
       return { width, route, statePath:'initial', status: 'error', screenshot: null, overflowPixels: 0, issues: [], error: scrub(error.message),
@@ -197,18 +216,22 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   for (const entry of routeStats) {
     entry.checked = viewports.filter(v => v.route === entry.path && v.status === 'complete').length;
     entry.failed = viewports.filter(v => v.route === entry.path && v.status === 'error').length;
+    entry.states = stateViews.filter(v => v.route === entry.path && v.status === 'complete').length;
   }
-  const findings = groupFindings(viewports);
+  const findings = groupFindings([...viewports, ...stateViews]);
   if (adaptive) for (const finding of findings) {
     finding.transitions = adaptive.transitions[finding.id] || [];
     finding.observedRanges = adaptive.observedRanges[finding.id] || [];
   }
-  const status = completed === 0 ? 'error' : completed < viewports.length || selection.skipped.length || warnings.length || viewports.some(v => v.truncated) ? 'partial' :
+  const status = completed === 0 ? 'error' : completed < viewports.length || selection.skipped.length || warnings.length || viewports.some(v => v.truncated) || stateViews.some(v => v.truncated) || skippedActions.some(s => /budget exhausted/i.test(s.reason)) ? 'partial' :
     findings.length ? 'issues' : 'clean';
   const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.4.0-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,
     warnings, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
-    exploration: {enabled:explore, mode:discover ? 'approved-link-discovery' : 'explicit-routes', routes:routeStats, skippedRoutes:selection.skipped, maxPages, maxDepth, maxStates},
+    exploration: {enabled:explore, mode:discover ? 'approved-link-discovery' : 'explicit-routes', routes:routeStats,
+      skippedRoutes:selection.skipped, skippedActions, inspectedStates:stateViews.length, attemptedStates,
+      maxPages, maxDepth, maxStates},
+    states:stateViews,
     coverage: { completed, requested: viewports.length, widths: viewports.map(v => v.width), durationMs: Date.now() - started },
     findings, viewports };
   await writeFile(path.join(output, 'report.json'), JSON.stringify(data, null, 2), 'utf8');

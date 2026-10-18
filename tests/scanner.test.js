@@ -20,6 +20,9 @@ test('quick and deep profiles keep explicit options and opt-in safety', () => {
   assert.equal(quick.explore,false);
   assert.equal(quick.strictCoverage,true);
   assert.equal(parseArgs(['scan','http://localhost','--profile','quick','--allow-incomplete']).strictCoverage,false);
+  for (const flags of [['--strict-coverage','--allow-incomplete'],['--allow-incomplete','--strict-coverage']]) {
+    assert.throws(() => parseArgs(['scan','http://localhost',...flags]),/cannot be combined/);
+  }
   const custom = parseArgs(['scan','http://localhost','--profile','quick','--widths','375,768','--open']);
   assert.deepEqual(custom.widths,[375,768]);
   assert.equal(custom.open,true);

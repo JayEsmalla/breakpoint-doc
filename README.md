@@ -14,6 +14,22 @@ An automated [portable package workflow](.github/workflows/portable.yml) builds 
 
 These are unsigned, portable **alpha** distributions, not a certified one-file EXE, system installer or macOS signed application. The OS may block execution of unsigned files. Check provenance and SHA-256 checksums; never run an unverified binary. These unsigned builds are clearly marked as automatic development prereleases, not stable production releases. See [portable downloads and caveats](docs/PORTABLE_DOWNLOADS.md).
 
+## One-command scan profiles (v0.7 preview)
+
+Use `--profile quick` for four representative widths without screenshots, or
+`--profile deep` for adaptive width sampling and more evidence. Both require complete
+coverage by default; neither clicks controls without the **separate** `--explore` opt-in.
+Add `--open` to launch the finished local report in your desktop browser.
+
+```bash
+node bin/breakpoint-doctor.js scan http://localhost:5173 --profile quick --open
+node bin/breakpoint-doctor.js scan http://localhost:5173 --profile deep --open
+```
+
+The portable Windows double-click launcher now uses Quick Scan for faster first-run results.
+Use `--max-duration 60000` to set a strict total browser-work deadline in milliseconds.
+Interrupted or untested viewports must never be interpreted as clean.
+
 ## Quick start
 
 Requires Node.js 22+.
@@ -71,6 +87,9 @@ Comparison defaults to failing **only new, confirmed, high-severity findings** (
 | Flag | Description |
 | --- | --- |
 | `--widths 320,375,390,768,1024,1440` | Specify 1–30 widths from 240 to 3840 pixels |
+| `--profile quick\|deep` | Preconfigured scan budget, no automatic UI clicks |
+| `--open` | Open finished HTML report in local browser |
+| `--max-duration 180000` | Total browser work deadline (1000–600000 ms) |
 | `--out ./breakpoint-report` | Output directory |
 | `--timeout 15000` | Per-navigation / screenshot timeout in milliseconds |
 | `--no-screenshots` | Do not create page images or evidence crops |

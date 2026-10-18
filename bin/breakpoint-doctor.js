@@ -7,6 +7,17 @@ import { appendFile, mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+function openLocalReport(reportUrl) {
+  // Only open the local file produced by our scanner, never page-supplied URLs.
+  const file = fileURLToPath(reportUrl);
+  const command = process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+  const child = spawn(command, [file], { detached:true, stdio:'ignore', windowsHide:true });
+  child.on('error', error => console.warn('Report saved; could not auto-open: '+error.message));
+  child.unref();
+}
 
 const HELP = [
   'Breakpoint Doctor — developer preview',
@@ -19,6 +30,8 @@ const HELP = [
   '',
   'Options:',
   '  --widths 320,375,390,768,1024,1440  Viewports (default)',
+  '  --profile quick|deep                   Quick: 4 widths/no images; Deep: adaptive widths',
+  '  --open                                 Open generated local HTML report',
   '  --out ./breakpoint-report              Report directory',
   '  --timeout 15000                        Navigation timeout (ms)',
   '  --max-duration 180000                 Total scan budget including discovery (ms)',
@@ -83,15 +96,18 @@ export function parseArgs(argv) {
       throw new Error('Only HTTP(S) URLs without embedded credentials are supported.');
     }
   }
-  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: false, disabledRules: [], severityOverrides: {}, responsive: false, routes: [], discover: false, explore: false, maxPages: 5, maxDepth: 1, maxStates: 20, maxDurationMs: 180000 };
+  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: false, disabledRules: [], severityOverrides: {}, responsive: false, routes: [], discover: false, explore: false, maxPages: 5, maxDepth: 1, maxStates: 20, maxDurationMs: 180000, profile: null, open: false };
+  const supplied = new Set();
   for (let i = urlText ? 2 : 1; i < argv.length; i++) {
     const flag = argv[i];
+    supplied.add(flag);
+    if (flag === '--open') { args.open = true; continue; }
     if (flag === '--no-screenshots') { args.screenshots = false; continue; }
     if (flag === '--strict-coverage') { args.strictCoverage = true; continue; }
     if (flag === '--responsive') { args.responsive = true; continue; }
     if (flag === '--discover') { args.discover = true; continue; }
     if (flag === '--explore') { args.explore = true; continue; }
-    if (!['--widths', '--out', '--timeout', '--disable-rules', '--severity', '--routes', '--max-pages', '--max-depth', '--max-states', '--max-duration'].includes(flag)) throw new Error('Unknown option: ' + flag);
+    if (!['--widths', '--out', '--timeout', '--disable-rules', '--severity', '--routes', '--max-pages', '--max-depth', '--max-states', '--max-duration', '--profile'].includes(flag)) throw new Error('Unknown option: ' + flag);
     const value = argv[++i];
     if (!value || value.startsWith('--')) throw new Error('Missing value for ' + flag);
     if (flag === '--widths') {
@@ -100,6 +116,10 @@ export function parseArgs(argv) {
       args.widths = [...new Set(widths)].sort((a, b) => a - b);
     }
     if (flag === '--out') args.out = value;
+    if (flag === '--profile') {
+      if (!['quick','deep'].includes(value)) throw new Error('--profile must be quick or deep.');
+      args.profile = value;
+    }
     if (flag === '--routes') args.routes = value.split(',');
     if (['--max-pages','--max-depth','--max-states'].includes(flag)) {
       const number = Number(value);
@@ -131,6 +151,15 @@ export function parseArgs(argv) {
       args.disabledRules = [...new Set(ruleNames)];
     }
   }
+  if (args.profile === 'quick') {
+    if (!supplied.has('--widths')) args.widths = [320,390,768,1440];
+    if (!supplied.has('--no-screenshots')) args.screenshots = false;
+    if (!supplied.has('--strict-coverage')) args.strictCoverage = true;
+  } else if (args.profile === 'deep') {
+    if (!supplied.has('--responsive')) args.responsive = true;
+    if (!supplied.has('--strict-coverage')) args.strictCoverage = true;
+  }
+  if (command === 'doctor' && (args.profile || args.open)) throw new Error('Profile/open options apply only to scan.');
   if (command === 'doctor' && (args.strictCoverage || args.responsive || args.disabledRules.length || Object.keys(args.severityOverrides).length)) throw new Error('Those options apply only to scan.');
   if (args.discover && !args.routes.length) throw new Error('--discover requires --routes with approved paths.');
   if (command === 'doctor' && (args.routes.length || args.discover || args.explore || args.maxPages !== 5 || args.maxDepth !== 1 || args.maxStates !== 20 || args.maxDurationMs !== 180000)) throw new Error('Exploration options apply only to scan.');
@@ -174,6 +203,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       for (const viewport of result.viewports) console.log('[' + viewport.status + '] ' + viewport.width + 'px: ' + viewport.issues.length + ' observations' + (viewport.error ? ' - ' + viewport.error : ''));
       console.log('Scan: ' + result.status + ' · ' + (result.findings?.length ?? 0) + ' grouped findings');
       console.log('Report: ' + result.reportPath);
+      if (args.open) openLocalReport(result.reportPath);
       const blocking = result.findings?.some(f => f.confidence === 'confirmed' && ['high','medium'].includes(f.severity));
       process.exitCode = result.status === 'error' ? 2 : result.status === 'partial' && args.strictCoverage ? 3 : blocking ? 1 : 0;
     }

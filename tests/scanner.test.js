@@ -11,6 +11,23 @@ import { scanSite } from '../src/scanner.js';
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
+test('quick and deep profiles keep explicit options and opt-in safety', () => {
+  const quick = parseArgs(['scan','http://localhost','--profile','quick']);
+  assert.deepEqual(quick.widths,[320,390,768,1440]);
+  assert.equal(quick.screenshots,false);
+  assert.equal(quick.strictCoverage,true);
+  assert.equal(quick.explore,false);
+  const custom = parseArgs(['scan','http://localhost','--profile','quick','--widths','375,768','--open']);
+  assert.deepEqual(custom.widths,[375,768]);
+  assert.equal(custom.open,true);
+  const deep = parseArgs(['scan','http://localhost','--profile','deep']);
+  assert.equal(deep.responsive,true);
+  assert.equal(deep.strictCoverage,true);
+  assert.equal(deep.explore,false,'deep must not auto-click pages without separate opt-in');
+  assert.throws(()=>parseArgs(['scan','http://localhost','--profile','unsafe']),/quick or deep/);
+  assert.throws(()=>parseArgs(['doctor','--profile','quick']),/only to scan/);
+});
+
 test('CLI validates widths and URLs', () => {
   const args = parseArgs(['scan','http://localhost:5173','--widths','768,320,320','--no-screenshots']);
   assert.deepEqual(args.widths, [320,768]);
@@ -28,6 +45,7 @@ test('failed viewport is never represented as clean in a report', () => {
   assert.match(html,/Not tested — scan failed/);
   assert.match(html,/HTTP 503/);
   assert.ok(!html.includes('Looking good here.'));
+  assert.ok(html.includes('Incomplete inspection:'));
   assert.ok(!html.includes('No blocking issues</span>'));
   assert.ok(!html.includes('0px document overflow · 0 DOM elements inspected'));
 });

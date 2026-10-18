@@ -18,7 +18,7 @@ try {
   const started=Date.now();
   const child=spawn(process.execPath,[
     path.join(root,'bin','breakpoint-doctor.js'),'scan',url.href,
-    '--no-screenshots','--strict-coverage','--out',out
+    '--profile','quick','--no-screenshots','--strict-coverage','--out',out
   ],{
     stdio:'inherit',shell:false,
     env:{...process.env,PLAYWRIGHT_BROWSERS_PATH:path.join(root,'browsers')}

@@ -21,6 +21,8 @@ test('privacy, options and missing-browser preflight', async () => {
   assert.equal(scrub('http://localhost/test?token=secret'), 'http://localhost/test');
   assert.deepEqual(parseArgs(['scan','http://localhost','--disable-rules','small-target']).disabledRules, ['small-target']);
   assert.equal(parseArgs(['doctor']).command, 'doctor');
+  assert.throws(() => parseArgs(['scan','http://localhost','--disable-rules','made-up']), /Unknown rule/);
+  assert.equal(parseArgs(['scan','http://localhost','--severity','page-overflow=info']).severityOverrides['page-overflow'],'info');
   const setup = await checkSetup({out:await output(),browserPath:'/nonexistent/browser'});
   assert.equal(setup.ok,false);
   assert.ok(setup.checks.some(c => !c.ok && c.guidance.includes('playwright install')));

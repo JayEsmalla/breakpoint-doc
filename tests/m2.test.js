@@ -24,6 +24,19 @@ test('occlusion flags covered controls but not unobstructed controls',async () =
   assert.ok(!scan.viewports[0].issues.some(i=>i.selector==='#free' && i.type==='occluded-control'));
 });
 
+test('confirmed layout issue includes a highlighted evidence crop when screenshots are enabled',async () => {
+  const out = await temp();
+  const result = await scanSite({
+    url:'http://fixture.invalid/evidence',
+    htmlContent:'<!doctype html><style>body{margin:0}#wide{width:600px;height:35px;background:#e55}</style><div id="wide"></div>',
+    widths:[320],out,screenshots:true
+  });
+  const finding = result.findings.find(f=>f.ruleId==='page-overflow');
+  assert.ok(finding?.evidenceScreenshot,JSON.stringify(result.findings));
+  const bytes = await readFile(path.join(out,finding.evidenceScreenshot));
+  assert.deepEqual([...bytes.subarray(1,4)],[80,78,71]); // PNG header
+});
+
 test('adaptive HTTP scanning finds narrow-only defects and documents transitions',async () => {
   await serve((req,res) => {
     res.setHeader('Content-Type','text/html');

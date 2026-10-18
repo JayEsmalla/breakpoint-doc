@@ -43,8 +43,18 @@ export async function discoverWidths({ initial, inspect, maxSamples = 30, tolera
   const ordered = [...samples.values()].sort((a,b) => a.width-b.width);
   const allIds = new Set(ordered.flatMap(v => [...geometryIds(v)]));
   const transitions = {};
+  const observedRanges = {};
   for (const id of allIds) {
     transitions[id] = [];
+    observedRanges[id] = [];
+    let current = null;
+    for (const sample of ordered) {
+      const active = geometryIds(sample).has(id);
+      if (active && !current) current = { minObserved: sample.width, maxObserved: sample.width };
+      else if (active) current.maxObserved = sample.width;
+      else if (current) { observedRanges[id].push(current); current = null; }
+    }
+    if (current) observedRanges[id].push(current);
     for (let i = 1; i < ordered.length; i++) {
       const a=ordered[i-1], b=ordered[i];
       if (a.status !== 'complete' || b.status !== 'complete') continue;
@@ -56,6 +66,6 @@ export async function discoverWidths({ initial, inspect, maxSamples = 30, tolera
     }
   }
   const unresolved = Object.values(transitions).some(list => list.some(t => t.precisionPx > tolerance));
-  return { viewports: ordered, transitions, exhausted: exhausted || (unresolved && (samples.size >= maxSamples || budgetExceeded())),
+  return { viewports: ordered, transitions, observedRanges, exhausted: exhausted || (unresolved && (samples.size >= maxSamples || budgetExceeded())),
     disclaimer: 'Transitions are bracketed by observed samples; behavior between untested widths remains unknown.' };
 }

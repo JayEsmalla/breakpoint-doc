@@ -113,8 +113,14 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
       if (screenshots) {
         const filename = 'viewport-' + width + '.png';
         try {
-          await first.page.screenshot({ path: path.join(output, filename), fullPage: true, animations: 'disabled', timeout });
+          const extent = await first.page.evaluate(() => ({
+            width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight
+          }));
+          const oversized = extent.height > 12000 || extent.width > 5000;
+          await first.page.screenshot({ path: path.join(output, filename), fullPage: !oversized,
+            animations: 'disabled', timeout });
           screenshot = filename;
+          if (oversized) warnings.push(width + 'px: full-page screenshot capped; only the initial viewport was captured.');
         } catch (error) { warnings.push(width + 'px: screenshot unavailable: ' + scrub(error.message)); }
       }
       if (screenshots) {
@@ -166,7 +172,10 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   } finally { await browser.close(); }
   const completed = viewports.filter(v => v.status === 'complete').length;
   const findings = groupFindings(viewports);
-  if (adaptive) for (const finding of findings) finding.transitions = adaptive.transitions[finding.id] || [];
+  if (adaptive) for (const finding of findings) {
+    finding.transitions = adaptive.transitions[finding.id] || [];
+    finding.observedRanges = adaptive.observedRanges[finding.id] || [];
+  }
   const status = completed === 0 ? 'error' : completed < viewports.length || warnings.length || viewports.some(v => v.truncated) ? 'partial' :
     findings.length ? 'issues' : 'clean';
   const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.3.0-dev', scannedAt: new Date().toISOString(),

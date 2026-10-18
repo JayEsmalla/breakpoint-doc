@@ -1,6 +1,6 @@
 # Developer experience specification (proposed)
 
-Status: future workflow. Today only `scan <URL>` exists; documented below commands such as `doctor`, `init`, `compare`, `audit` are NOT implemented.
+Status: M1/M2 alpha has `doctor` and `scan` including `--responsive`. The `init`, `audit`, `compare`, profile systems, multi-route coverage and full sensitive-data masking described below are proposed only.
 
 ## Four-minute onboarding target
 1. User installs or runs from npm (when published) and starts a trusted dev server.
@@ -9,20 +9,20 @@ Status: future workflow. Today only `scan <URL>` exists; documented below comman
 4. CLI prints clickable absolute file URL and short categorized summary; report opens in browser without sign-in or upload.
 5. Optional `breakpoint-doctor init` generates a commented JS config after consent; zero config remains the default.
 
-Example *planned* future usage:
+Proposed future usage (except `doctor`):
 ```sh
 breakpoint-doctor doctor
 breakpoint-doctor audit http://localhost:5173 --profile quick
 breakpoint-doctor audit http://localhost:5173 --profile explore --paths /,/shop,/checkout --max-pages 4
 breakpoint-doctor compare .breakpoint-baseline.json breakpoint-report/report.json
 ```
-Version 0.2 actual command: `node bin/breakpoint-doctor.js scan http://localhost:5173`.
+Current source commands: `node bin/breakpoint-doctor.js doctor http://localhost:5173` and `node bin/breakpoint-doctor.js scan http://localhost:5173 --responsive`. npm package is not published.
 
 ## Scan profiles (planned)
 | Profile | Behavior | Gate |
 |---|---|---|
 | `quick` (default) | One route, fixed representative widths, safe passive checks, tight time budget | Stable errors, not uncertain warnings |
-| `responsive` | Quick + adaptive width boundary checks for confirmed layout issues | Explicit budget |
+| `responsive` (via `--responsive`, available) | Quick + sampled adaptive width brackets for layout issues | Explicit budget |
 | `explore` | Bounded same-origin page discovery, manually allowlisted non-mutating UI state changes | Requires permission/config |
 | `ci` | Reproducible settings + baseline comparison + strict artifacts/exit policy | New confirmed high only by default |
 

@@ -5,7 +5,7 @@ Legend: [x] implemented and tested locally; [ ] outstanding. Implementation chec
 ## M0 — Foundation
 - [x] Public GitHub repository, MIT, local Chromium CLI, JavaScript syntax checks.
 - [x] Real local HTTP smoke and labeled synthetic DOM cases on Windows.
-- [ ] Independently confirm GitHub Actions Node 22/24 CI green.
+- [x] GitHub Actions Linux CI succeeded on Node 22 and Node 24 (run 39152362083).
 - [ ] Validate fresh Linux/macOS installation and real HTTP smoke.
 
 ## M1 — Reliable first-run diagnostics (implementation complete; release gate open)

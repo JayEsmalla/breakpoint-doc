@@ -84,4 +84,4 @@ The first priority is a **trustworthy low-friction scan**: explicit scan status,
 
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for verified M1/M2 implementation and outstanding acceptance gates. [Product vision](docs/PRODUCT_VISION.md), [detection reliability](docs/DETECTION_RELIABILITY.md), and [architecture](docs/ARCHITECTURE_NEXT.md) distinguish the shipped core from planned M3/M4 route exploration and baseline-aware CI.
+See [M1/M2 validation evidence](docs/VALIDATION_M1_M2.md) and [docs/ROADMAP.md](docs/ROADMAP.md) for implemented features, independently verified CI, and outstanding acceptance gates. [Product vision](docs/PRODUCT_VISION.md), [detection reliability](docs/DETECTION_RELIABILITY.md), and [architecture](docs/ARCHITECTURE_NEXT.md) distinguish the shipped core from planned M3/M4 route exploration and baseline-aware CI.

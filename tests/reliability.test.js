@@ -67,6 +67,25 @@ test('doctor does not report an HTTP 404 page as reachable', async () => {
   });
 });
 
+
+
+test('incomplete second-pass verification is reported as partial coverage', async () => {
+  let navigations = 0;
+  await withServer((req, res) => {
+    navigations++;
+    if (navigations === 2) { res.writeHead(503); res.end('server unavailable'); return; }
+    res.setHeader('Content-Type','text/html');
+    res.end('<!doctype html><style>body{margin:0}#wide{width:650px;height:20px}</style><div id="wide"></div>');
+  }, async base => {
+    const report = await scanSite({ url:base, widths:[320], out:await output(), screenshots:false });
+    assert.equal(report.status, 'partial');
+    const overflow = report.findings.find(f => f.ruleId === 'page-overflow');
+    assert.ok(overflow);
+    assert.equal(overflow.confidence, 'suspected');
+    assert.ok(report.warnings.some(w => w.includes('recheck failed')));
+  });
+});
+
 test('navigation errors are not reported as clean or as layout defects', async () => {
   await withServer((req,res) => {res.writeHead(404);res.end('not found');},async base => {
     const result = await scanSite({url:base+'/missing',widths:[320],out:await output(),screenshots:false});

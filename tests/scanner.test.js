@@ -15,8 +15,8 @@ test('CLI validates widths and URLs', () => {
   const args = parseArgs(['scan','http://localhost:5173','--widths','768,320,320','--no-screenshots']);
   assert.deepEqual(args.widths, [320,768]);
   assert.equal(args.screenshots,false);
-  assert.throws(() => parseArgs(['scan','file:///etc/passwd']), /http\(s\)/);
-  assert.throws(() => parseArgs(['scan','http://localhost','--widths','100']), /between 240/);
+  assert.throws(() => parseArgs(['scan','file:///etc/passwd']), /HTTP\(S\)/);
+  assert.throws(() => parseArgs(['scan','http://localhost','--widths','100']), /from 240/);
 });
 
 test('HTML reports escape untrusted page metadata', () => {

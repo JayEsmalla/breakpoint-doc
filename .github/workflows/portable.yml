@@ -3,13 +3,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/portable.yml'
-      - 'scripts/build-portable.js'
-      - 'scripts/test-portable.js'
-      - 'scripts/checksums.js'
-      - 'scripts/scan-website.mjs'
-      - 'src/doctor.js'
     tags:
       - 'v*-alpha.*'
 permissions:
@@ -34,8 +27,10 @@ jobs:
       - name: Install Linux browser OS dependencies
         if: runner.os == 'Linux'
         run: npx playwright install-deps chromium
-      - name: Validate source before packaging
+      - name: Validate syntax
         run: npm run check
+      - name: Run automated tests
+        run: npm test
       - name: Build self-contained runtime folder
         run: node scripts/build-portable.js
       - name: Verify bundled Node and browser against local HTTP
@@ -46,17 +41,18 @@ jobs:
         run: |
           New-Item -ItemType Directory release -Force | Out-Null
           $folder = Get-ChildItem dist -Directory | Select-Object -First 1
-          Compress-Archive -Path $folder.FullName -DestinationPath "release/$($folder.Name).zip"
+          $shortSha = $env:GITHUB_SHA.Substring(0,7)
+          Compress-Archive -Path $folder.FullName -DestinationPath "release/$($folder.Name)-$shortSha.zip"
       - name: Compress Linux/macOS portable folder
         if: runner.os != 'Windows'
         shell: bash
         run: |
           mkdir -p release
           folder="$(basename dist/*)"
-          tar -C dist -czf "release/${folder}.tar.gz" "$folder"
+          tar -C dist -czf "release/${folder}-${GITHUB_SHA:0:7}.tar.gz" "$folder"
       - name: Generate SHA-256 checksums
         run: node scripts/checksums.js
-      - name: Upload unsigned alpha packages for review
+      - name: Upload temporary build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: portable-${{ matrix.os }}
@@ -65,11 +61,12 @@ jobs:
           if-no-files-found: error
 
   publish-prerelease:
-    # Creating/pushing the tag is the owner's explicit publication action.
-    # Branch pushes and manual test builds NEVER publish anything.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # All three OS packages and browser smoke tests must pass. Main pushes
+    # create immutable-per-commit DEV prereleases. Manual builds do not publish.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: portable
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -78,12 +75,49 @@ jobs:
           pattern: portable-*
           path: release
           merge-multiple: true
-      - name: Publish unsigned alpha GitHub prerelease assets
+      - name: Verify all three platform archives before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find release -maxdepth 1 -name '*.zip' | wc -l)" -eq 1
+          test "$(find release -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 2
+          test "$(find release -maxdepth 1 -name '*.sha256' | wc -l)" -eq 3
+          for sums in release/*.sha256; do
+            (cd release && sha256sum -c "$(basename "$sums")")
+          done
+      - name: Automatically publish development prerelease
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Breakpoint Doctor $GITHUB_REF_NAME (alpha)" \
-            --notes "Unsigned portable alpha distributions. Verify .sha256 files before use. No cloning or Node installation required. See docs/PORTABLE_DOWNLOADS.md. Not production-certified." \
-            --prerelease --verify-tag
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            tag="dev-${GITHUB_SHA:0:7}"
+            label="Development snapshot"
+          else
+            tag="$GITHUB_REF_NAME"
+            label="Versioned alpha"
+          fi
+          notes="Unsigned Breakpoint Doctor portable downloads for Windows, Linux and macOS.
+          Source commit: ${GITHUB_SHA}
+          Development snapshots are generated automatically after all three platform builds and smoke tests pass.
+          No Git clone, Node.js installation or separate browser download is needed.
+          Verify the .sha256 checksums before extracting.
+          This is an alpha developer tool and is not a signed or certified desktop application.
+          See docs/PORTABLE_DOWNLOADS.md in the repository for instructions."
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists; leaving existing verified assets unchanged."
+            exit 0
+          fi
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            gh release create "$tag" release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Breakpoint Doctor $label (${GITHUB_SHA:0:7})" \
+              --notes "$notes" --prerelease
+          else
+            gh release create "$tag" release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Breakpoint Doctor $label ($tag)" \
+              --notes "$notes" --prerelease --verify-tag
+          fi

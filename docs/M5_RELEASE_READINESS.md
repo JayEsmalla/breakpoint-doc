@@ -12,6 +12,7 @@
 - [x] Maintainer-facing `SECURITY.md`, issue forms, PR template, CODE_OF_CONDUCT and CHANGELOG.
 - [x] GitHub CI configured for Linux Node 22/24, Windows Node 24 and macOS Node 24, with Chromium and `npm pack --dry-run` checks.
 - [x] Demonstration regression workflow uses a reviewed local fixture and a read-only token, with PR artifacts.
+- [x] Configured automatic SHA-specific GitHub **development prereleases** on every successful main-branch three-platform build. Downloads are unsigned alpha artifacts; no npm publication or stable release is implied.
 - [x] Cross-platform GitHub Actions run [39157481460](https://github.com/JayEsmalla/breakpoint-doc/actions/runs/39157481460) on commit `a8290ca` passed **Ubuntu Node 22, Ubuntu Node 24, Windows Node 24 and macOS Node 24**.
 
 ## Public release blockers, not waived

@@ -8,11 +8,11 @@ A JavaScript CLI that loads a website in Chromium across viewport widths, identi
 
 ## Download without cloning or installing Node
 
-An automated [portable package workflow](.github/workflows/portable.yml) builds OS-specific alpha archives containing **Node.js, the CLI, its dependencies and matching Chromium headless shell**. After a successful workflow, download the Windows ZIP, Linux tarball or macOS tarball from the workflow's **Artifacts** section. No Git clone, npm setup or separate browser download is needed.
+An automated [portable package workflow](.github/workflows/portable.yml) builds OS-specific alpha archives containing **Node.js, the CLI, its dependencies and matching Chromium headless shell**. **Every validated push to `main` automatically creates a downloadable [GitHub Development Prerelease](https://github.com/JayEsmalla/breakpoint-doc/releases).** Each snapshot has a commit-specific `dev-<short SHA>` tag and contains Windows ZIP, Linux tarball, macOS tarball and `.sha256` checksums. No manual release or tag creation is required. The workflow first runs tests and verifies the bundled browser on all three platforms; failed builds do not get published. No Git clone, npm setup or separate browser download is needed.
 
 **Windows:** extract the ZIP and double-click `Scan Website.cmd`, or run `.\\breakpoint-doctor.cmd scan http://localhost:5173` in a terminal. **Linux/macOS:** extract, then run `./breakpoint-doctor scan http://localhost:5173`.
 
-These are unsigned, portable **alpha** distributions, not a certified one-file EXE, system installer or macOS signed application. The OS may block execution of unsigned files. Check provenance and SHA-256 checksums; never run an unverified binary. Files can be attached to a public GitHub prerelease after owner approval and QA. See [portable downloads and caveats](docs/PORTABLE_DOWNLOADS.md).
+These are unsigned, portable **alpha** distributions, not a certified one-file EXE, system installer or macOS signed application. The OS may block execution of unsigned files. Check provenance and SHA-256 checksums; never run an unverified binary. These unsigned builds are clearly marked as automatic development prereleases, not stable production releases. See [portable downloads and caveats](docs/PORTABLE_DOWNLOADS.md).
 
 ## Quick start
 

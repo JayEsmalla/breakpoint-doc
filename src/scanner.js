@@ -178,7 +178,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   }
   const status = completed === 0 ? 'error' : completed < viewports.length || warnings.length || viewports.some(v => v.truncated) ? 'partial' :
     findings.length ? 'issues' : 'clean';
-  const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.3.0-dev', scannedAt: new Date().toISOString(),
+  const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.4.0-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,
     warnings, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
     coverage: { completed, requested: viewports.length, widths: viewports.map(v => v.width), durationMs: Date.now() - started },

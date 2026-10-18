@@ -4,7 +4,7 @@
 
 A JavaScript CLI that loads a website in Chromium across viewport widths, identifies likely responsive problems plus basic browser runtime/resource failures, and generates an evidence-backed HTML + JSON report. The future vision is **autonomous frontend QA**: safe route/UI-state exploration, width-boundary diagnosis, and regression reporting.
 
-> **Status:** v0.2.0 developer preview, not yet published on npm. Detection is heuristic. Review findings before making code changes.
+> **Status:** M1/M2 developer preview. Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
 
 ## Quick start
 
@@ -13,6 +13,7 @@ Requires Node.js 22+.
 ```bash
 npm install
 npx playwright install chromium
+node bin/breakpoint-doctor.js doctor http://localhost:5173
 node bin/breakpoint-doctor.js scan http://localhost:5173
 ```
 
@@ -34,7 +35,11 @@ After an npm release, the intended invocation is `npx breakpoint-doctor scan <UR
 | `--widths 320,375,390,768,1024,1440` | Specify 1–30 widths from 240 to 3840 pixels |
 | `--out ./breakpoint-report` | Output directory |
 | `--timeout 15000` | Per-navigation / screenshot timeout in milliseconds |
-| `--no-screenshots` | Only write the HTML and JSON diagnostic report |
+| `--no-screenshots` | Do not create page images or evidence crops |
+| `--responsive` | Sample extra widths and refine observed breakpoint transitions |
+| `--disable-rules small-target` | Suppress named rules; unknown rules cause a configuration error |
+| `--severity page-overflow=info` | Rule severity override: high, medium, info or off |
+| `--strict-coverage` | Exit 3 if scan is partial |
 
 Use `BREAKPOINT_DOCTOR_CHROMIUM=/path/to/chromium` to point at an already-installed Chromium executable if needed.
 
@@ -44,11 +49,13 @@ Use `BREAKPOINT_DOCTOR_CHROMIUM=/path/to/chromium` to point at an already-instal
 - **Clipped controls:** visible interactive elements may extend beyond the edge or be hidden behind overflowing ancestors.
 - **Small targets:** an advisory for controls smaller than 24 CSS pixels (exceptions may apply, not an accessibility conformance test).
 - **Visual context:** optional full-page screenshots for each width.
-- **Basic automatic browser checks (v0.2):** visible broken images, uncaught JavaScript exceptions, and same-origin HTTP/network failures. Not all HTTP errors are defects. These checks are *not* a complete QA audit.
+- **Runtime and resources:** visible broken images, uncaught JavaScript exceptions, same-origin failed requests and HTTP errors. HTTP 4xx and some network errors may be intentional.
+- **Suspected obstruction:** hit-test important controls to identify possible overlays; verify manually because legitimate UI layers exist.
+- **M2 responsive mode:** extra sampled widths, bounded width-transition refinement, grouped issues, sampled failure ranges, and best-effort highlighted evidence crops. This is not exhaustive testing of every pixel width.
 
-**Exit codes:** `0` no high/medium issues; `1` actionable issues found; `2` CLI/browser setup error. Advisories alone do not fail CI.
+**Exit codes:** `0` no confirmed high/medium findings (not a bug-free guarantee); `1` confirmed high/medium finding; `2` fatal/setup error; `3` incomplete scan with `--strict-coverage`. Suspected issues are visible but do not fail CI by default. Partial without strict coverage can exit 0; inspect coverage in the report.
 
-**Limitations:** v0.2 analyzes the initial rendered DOM and startup/browser events only; it does not click menus, authenticate, crawl multiple routes, infer code locations or reliably handle all carousels and transitions. The report deliberately labels findings as heuristics.
+**Limitations:** One provided page only. No route discovery, UI clicking, login automation, exact source-line attribution or complete carousel/shadow DOM coverage. Adaptive widths only bracket observed transitions, not all possible failures. To confirm a finding the scanner may load the supplied page a second time. Only scan authorized development/staging targets.
 
 ## Test
 
@@ -57,7 +64,7 @@ npm test
 npm run check
 ```
 
-Tests include fixture pages with deliberate overflow and a tiny target, plus a clean fixture. The end-to-end test requires Chromium (see installation above).
+The suite includes 32 labeled positive/negative fixture scenarios, real Chromium tests for occlusion, an actual local HTTP server scan, evidence crops, and adaptive width transition checks. These prove coverage on test fixtures, not universal real-site accuracy. Chromium installation is required.
 
 ## Open source
 
@@ -77,4 +84,4 @@ The first priority is a **trustworthy low-friction scan**: explicit scan status,
 
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md). Our direction is evidence-backed autonomous frontend QA with tightly bounded safe exploration and CI regression checks. [Product vision](docs/PRODUCT_VISION.md) and [architecture proposal](docs/ARCHITECTURE_NEXT.md) distinguish the shipped behavior from future capabilities.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for verified M1/M2 implementation and outstanding acceptance gates. [Product vision](docs/PRODUCT_VISION.md), [detection reliability](docs/DETECTION_RELIABILITY.md), and [architecture](docs/ARCHITECTURE_NEXT.md) distinguish the shipped core from planned M3/M4 route exploration and baseline-aware CI.

@@ -53,7 +53,7 @@ See [M4 validation evidence](VALIDATION_M4.md).
 - [x] Linux Node 22/24, Windows Node 24, macOS Node 24 CI checks configured with Chromium and packaging.
 - [x] Local package dry run, npm registry-name lookup, npm production dependency audit, security guidance and contribution templates.
 - [x] Changelog and a candid release/readiness gate ledger.
-- [ ] Verify successful final matrix on all three platforms for release candidate.
+- [x] Verified Ubuntu Node 22/24, Windows Node 24 and macOS Node 24 on [Actions run 39157481460](https://github.com/JayEsmalla/breakpoint-doc/actions/runs/39157481460).
 - [ ] Independent user onboarding trials and 12+ reviewed real staging sites.
 - [ ] Security/privacy audit, npm ownership verification and maintainer-approved publication/release.
 

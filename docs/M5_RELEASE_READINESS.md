@@ -6,12 +6,13 @@
 - [x] JavaScript-only open-source repository with MIT license, docs and working CLI commands.
 - [x] Reproducible `npm ci`, `npm run check`, `npm test` on the connected Windows workspace.
 - [x] `npm pack --dry-run` produces an npm tarball using the explicit `files` whitelist; no npm publication.
+- [x] A real `npm pack` tarball was installed into an isolated temporary consumer folder on Windows; its CLI `--version` returned `0.6.0-alpha.1` and exited successfully.
 - [x] `npm audit --omit=dev --audit-level=high` returned zero reported production vulnerabilities during this review. This is time-sensitive and not proof of security.
 - [x] An unauthenticated `npm view breakpoint-doctor version` returned E404 during this review. **Not** a guarantee that publication is allowed or that the name will remain free.
 - [x] Maintainer-facing `SECURITY.md`, issue forms, PR template, CODE_OF_CONDUCT and CHANGELOG.
 - [x] GitHub CI configured for Linux Node 22/24, Windows Node 24 and macOS Node 24, with Chromium and `npm pack --dry-run` checks.
 - [x] Demonstration regression workflow uses a reviewed local fixture and a read-only token, with PR artifacts.
-- [ ] Collect and independently confirm final **all-platform** GitHub Actions results for this revision.
+- [x] Cross-platform GitHub Actions run [39157481460](https://github.com/JayEsmalla/breakpoint-doc/actions/runs/39157481460) on commit `a8290ca` passed **Ubuntu Node 22, Ubuntu Node 24, Windows Node 24 and macOS Node 24**.
 
 ## Public release blockers, not waived
 - [ ] At least 12 external developers independently try setup/scan/repro; collect consent-based timings and usability feedback (no invented results).

@@ -26,7 +26,7 @@
 - Automated M4 tests cover approval, new/existing/resolved, changed confidence, policy gates, incomplete scope, mismatched host, changed rules, CLI exit codes and artifacts, repeated scans and real HTTP stability.
 - A local self-identified demo fixture on localhost was scanned at 390px and 768px on `/` and `/about`; approved baseline and immediate comparison were clean.
 - The read-only Linux workflow uses `pull_request` and `contents: read`, no `pull_request_target` and no secrets, stores local artifacts for seven days.
-- GitHub Actions verification should be checked against the most recent commit and OS matrix; an in-progress workflow must not be described as passed.
+- GitHub Actions regression workflow [39157481447](https://github.com/JayEsmalla/breakpoint-doc/actions/runs/39157481447) passed on commit `a8290ca`; cross-platform CI run [39157481460](https://github.com/JayEsmalla/breakpoint-doc/actions/runs/39157481460) also passed. These exercise the project's fixture, not an independent user's application.
 
 ## Limitations
 - Fingerprints are heuristic; changing selectors or message text can alter identity. Baseline approval is a developer decision.

@@ -6,6 +6,7 @@
 - Optional independently repeated scan to flag inconsistent observations without claiming confirmed flakiness.
 - Read-only GitHub PR regression demonstration using an approved, isolated fixture; Markdown job summaries and short-retention artifact output.
 - Cross-platform CI validation matrix, security guidance and community templates.
+- Fixed Windows-only approved-route discovery issue exposed by the expanded OS matrix; all four runner jobs subsequently passed.
 - **Not** a v1 stability claim, npm publication or verified real-world accuracy benchmark.
 
 ## [0.5.0-alpha.1]

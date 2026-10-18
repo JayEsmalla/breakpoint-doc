@@ -4,7 +4,7 @@
 
 A JavaScript CLI that loads a website in Chromium across viewport widths, identifies likely responsive problems plus basic browser runtime/resource failures, and generates an evidence-backed HTML + JSON report. The future vision is **autonomous frontend QA**: safe route/UI-state exploration, width-boundary diagnosis, and regression reporting.
 
-> **Status:** M1–M4 implemented in v0.6.0-alpha.1; M5 release-engineering checks underway. Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
+> **Status:** M1–M4 implemented; M5 engineering checks pass for v0.6.0-alpha.1. Independent user/real-site, privacy and npm-publication gates remain open. **Not a v1 release.** Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
 
 ## Quick start
 

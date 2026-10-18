@@ -19,6 +19,19 @@ test('CLI validates widths and URLs', () => {
   assert.throws(() => parseArgs(['scan','http://localhost','--widths','100']), /from 240/);
 });
 
+test('failed viewport is never represented as clean in a report', () => {
+  const html = renderHtmlReport({
+    schemaVersion:1,version:'0.7.0-alpha.1',scannedAt:'2026-10-19',url:'http://localhost/',
+    status:'error',warnings:[],coverage:{completed:0,requested:1},
+    viewports:[{route:'/',width:390,status:'error',issues:[],error:'HTTP 503',overflowPixels:0,visitedElements:0}]
+  });
+  assert.match(html,/Not tested — scan failed/);
+  assert.match(html,/HTTP 503/);
+  assert.ok(!html.includes('Looking good here.'));
+  assert.ok(!html.includes('No blocking issues</span>'));
+  assert.ok(!html.includes('0px document overflow · 0 DOM elements inspected'));
+});
+
 test('HTML reports escape untrusted page metadata', () => {
   const html = renderHtmlReport({ version:'0.1.0',scannedAt:'2026-01-01',url:'https://example.org/?a=<script>alert(1)</script>',viewports:[{width:320,issues:[],overflowPixels:0,visitedElements:0}] });
   assert.ok(!html.includes('a=<script>'));

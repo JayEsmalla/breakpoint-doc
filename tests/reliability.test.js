@@ -86,6 +86,32 @@ test('incomplete second-pass verification is reported as partial coverage', asyn
   });
 });
 
+test('total duration option is bounded and validated', () => {
+  assert.equal(parseArgs(['scan','http://localhost','--max-duration','3000']).maxDurationMs,3000);
+  assert.throws(()=>parseArgs(['scan','http://localhost','--max-duration','100']),/1000/);
+  assert.throws(()=>parseArgs(['doctor','--max-duration','3000']),/scan/);
+});
+
+test('watchdog ends stalled navigation without claiming a clean result', async () => {
+  const server=createServer((req,res) => {
+    // Never finish the document: global deadline must end browser work.
+    req.on('close',()=>{ if (!res.writableEnded) res.destroy(); });
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const base='http://127.0.0.1:'+server.address().port;
+    const started=Date.now();
+    const report=await scanSite({url:base,widths:[320],out:await output(),
+      screenshots:false,timeout:10000,maxDurationMs:1800});
+    assert.equal(report.status,'error');
+    assert.equal(report.viewports[0].status,'error');
+    assert.ok(Date.now()-started<9000,'watchdog should interrupt navigation');
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve=>server.close(resolve));
+  }
+});
+
 test('navigation errors are not reported as clean or as layout defects', async () => {
   await withServer((req,res) => {res.writeHead(404);res.end('not found');},async base => {
     const result = await scanSite({url:base+'/missing',widths:[320],out:await output(),screenshots:false});

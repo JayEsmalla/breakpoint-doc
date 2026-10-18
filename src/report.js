@@ -14,6 +14,7 @@ export function renderHtmlReport(report) {
   const summary = '<section class="viewport"><p class="eyebrow">COVERAGE AND LIMITATIONS</p><h2>Scan: ' + esc(status) + '</h2><p class="muted">' + coverage.completed + ' of ' + coverage.requested + ' viewports completed. An incomplete or partial scan is never proof of a clean site.</p>' +
     (report.viewports.filter(v => v.status === 'error').map(v => '<p>Unscanned ' + esc(v.width) + 'px: ' + esc(v.error) + '</p>').join('')) +
     (report.warnings || []).map(w => '<p>' + esc(w) + '</p>').join('') +
+    (report.notices || []).map(n => '<p class="muted">Note: ' + esc(n) + '</p>').join('') +
     '<p class="muted">Screenshots can contain private data; inspect artifacts before sharing. Findings are scoped to the tested page and states. ' + esc(report.adaptiveDisclaimer || '') + '</p></section>';
   const exploration = report.exploration;
   const stateRecords = report.states || [];

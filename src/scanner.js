@@ -79,11 +79,12 @@ async function snapshot(context, target, timeout, htmlContent) {
 
 export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoint-report', timeout = 15000,
   screenshots = true, htmlContent, disabledRules = [], severityOverrides = {}, responsive = false, strictCoverage = false,
-  routes = [], discover = false, maxPages = 5, maxDepth = 1, explore = false, maxStates = 20 } = {}) {
+  routes = [], discover = false, maxPages = 5, maxDepth = 1, explore = false, maxStates = 20, maxDurationMs = 180000 } = {}) {
   const target = parseTarget(url);
   const plan = planRoutes(target.href, routes, maxPages);
   if (discover && !routes.length) throw new Error('--discover requires approved routes.');
   validateRules(disabledRules, severityOverrides);
+  if (!Number.isInteger(maxDurationMs) || maxDurationMs < 1000 || maxDurationMs > 600000) throw new Error('Maximum scan duration must be 1000–600000 ms.');
   if (!Array.isArray(widths) || widths.length < 1 || widths.length > 30 || widths.some(w => !Number.isInteger(w) || w < 240 || w > 3840)) throw new Error('Invalid viewport widths.');
   const output = path.resolve(out);
   await mkdir(output, { recursive: true });
@@ -93,16 +94,23 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   } catch (error) {
     throw new Error('Chromium could not launch. Run: npx playwright install chromium. ' + scrub(error.message));
   }
+  // Covers discovery and scanning; force-close the browser on overdue work.
+  const started = Date.now();
+  const watchdog = setTimeout(() => browser.close().catch(() => {}), maxDurationMs);
+  watchdog.unref?.();
+  try {
   const viewports = [];
   const stateViews = [];
   const skippedActions = [];
   let attemptedStates = 0;
   const warnings = [];
+  const notices = [];
   const selection = discover ? await discoverApproved(browser, target.href, plan, { maxDepth, timeout }) :
     { routes: plan.selected, skipped: plan.skipped, discovered: plan.selected.map((path, depth) => ({path, depth:0})) };
   const routeStats = selection.routes.map(route => ({path:route, checked:0, failed:0}));
-  const started = Date.now();
   async function inspect(width, route = target.pathname) {
+    if (Date.now() - started >= maxDurationMs) return {width, route, statePath:'initial', status:'error', screenshot:null,
+      issues:[], error:'Total scan time budget exceeded.',overflowPixels:0,visitedElements:0,truncated:false};
     const routeTarget = route === target.pathname ? target : new URL(route, target);
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1, serviceWorkers:'block' });
     if (explore) await context.routeWebSocket('**/*', socket => socket.close());
@@ -146,8 +154,8 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
           await first.page.screenshot({ path: path.join(output, filename), fullPage: !oversized,
             animations: 'disabled', timeout });
           screenshot = filename;
-          if (oversized) warnings.push(width + 'px: full-page screenshot capped; only the initial viewport was captured.');
-        } catch (error) { warnings.push(width + 'px: screenshot unavailable: ' + scrub(error.message)); }
+          if (oversized) notices.push(width + 'px: full-page screenshot capped; only the initial viewport was captured.');
+        } catch (error) { notices.push(width + 'px: optional screenshot unavailable: ' + scrub(error.message)); }
       }
       if (screenshots) {
         for (const [index, issue] of diagnostics.issues.filter(i => i.rect && i.severity !== 'info').slice(0, 3).entries()) {
@@ -194,24 +202,24 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
     }
   }
   let adaptive = null;
-  try {
+  {
     for (const route of selection.routes) {
       if (responsive && route === selection.routes[0]) {
         adaptive = await discoverWidths({ initial: widths, inspect: width => inspect(width, route), maxSamples: 30,
-          budgetExceeded: () => Date.now() - started > 180000 });
+          budgetExceeded: () => Date.now() - started >= maxDurationMs });
         viewports.push(...adaptive.viewports);
         if (adaptive.exhausted) warnings.push('Adaptive width search budget exhausted; some transitions remain approximate.');
         continue;
       }
       for (const width of [...new Set(widths)].sort((a,b) => a-b)) {
-        if (Date.now() - started > 180000) {
+        if (Date.now() - started >= maxDurationMs) {
           viewports.push({ width, route, statePath:'initial', status: 'error', issues: [], error: 'Total scan time budget exceeded.', overflowPixels: 0, visitedElements: 0, truncated: false });
           continue;
         }
         viewports.push(await inspect(width, route));
       }
     }
-  } finally { await browser.close(); }
+  }
   const completed = viewports.filter(v => v.status === 'complete').length;
   for (const entry of routeStats) {
     entry.checked = viewports.filter(v => v.route === entry.path && v.status === 'complete').length;
@@ -227,7 +235,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
     findings.length ? 'issues' : 'clean';
   const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.6.0-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,
-    warnings, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
+    warnings, notices, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
     ruleConfiguration:{available:Object.keys(RULES).sort(),disabled:[...disabledRules].sort(),severityOverrides:Object.fromEntries(Object.entries(severityOverrides).sort())},
     exploration: {enabled:explore, mode:discover ? 'approved-link-discovery' : 'explicit-routes', routes:routeStats,
       skippedRoutes:selection.skipped, skippedActions, inspectedStates:stateViews.length, attemptedStates,
@@ -238,4 +246,8 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   await writeFile(path.join(output, 'report.json'), JSON.stringify(data, null, 2), 'utf8');
   await writeFile(path.join(output, 'index.html'), renderHtmlReport(data), 'utf8');
   return { ...data, reportPath: pathToFileURL(path.join(output, 'index.html')).href };
+  } finally {
+    clearTimeout(watchdog);
+    await browser.close().catch(() => {});
+  }
 }

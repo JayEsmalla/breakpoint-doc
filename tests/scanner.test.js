@@ -124,6 +124,9 @@ test('report CSP allows own screenshot while blocking inline script injection',a
   try {
     const page=await browser.newPage();
     await page.goto(scan.reportPath);
+    // Image decoding is asynchronous and differs between Linux and Windows.
+    await page.waitForFunction(() => [...document.querySelectorAll('.preview img')].length === 1 &&
+      [...document.querySelectorAll('.preview img')].every(image => image.complete), null, {timeout:8000});
     const images=await page.locator('.preview img').evaluateAll(items=>items.map(img=>({complete:img.complete,width:img.naturalWidth})));
     assert.equal(images.length,1);
     assert.equal(images[0].complete,true);

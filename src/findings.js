@@ -31,12 +31,13 @@ export function groupFindings(viewports) {
         grouped.set(key, { id: key, ruleId: issue.ruleId || issue.type, type: issue.type, severity: issue.severity,
           confidence: issue.confidence || 'suspected', selector: issue.selector, message: issue.message,
           suggestion: issue.suggestion, computed: issue.computed, rect: issue.rect,
-          widths: [], screenshot: viewport.screenshot, reproduction: issue.reproduction });
+          widths: [], screenshot: viewport.screenshot, evidenceScreenshot: issue.evidenceScreenshot, reproduction: issue.reproduction });
       }
       const entry = grouped.get(key);
       if (!entry.widths.includes(viewport.width)) entry.widths.push(viewport.width);
       if (issue.confidence === 'confirmed') entry.confidence = 'confirmed';
       if (!entry.screenshot && viewport.screenshot) entry.screenshot = viewport.screenshot;
+      if (!entry.evidenceScreenshot && issue.evidenceScreenshot) entry.evidenceScreenshot = issue.evidenceScreenshot;
     }
   }
   const rank = { high: 0, medium: 1, info: 2 };

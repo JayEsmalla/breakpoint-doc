@@ -44,6 +44,30 @@ export function collectDiagnostics() {
     return '';
   }
 
+  function evidenceRect(rect) {
+    return { x: Math.round(rect.left), y: Math.round(rect.top),
+      width: Math.round(rect.width), height: Math.round(rect.height) };
+  }
+
+  // Hit-testing only within the visible intersection. Scrollers, offscreen
+  // slides and intentionally non-interactive descendants are excluded.
+  function occlusion(element, rect) {
+    if (getComputedStyle(element).pointerEvents === 'none') return false;
+    if (element.closest('[inert],[aria-hidden="true"]')) return false;
+    const left = Math.max(0, rect.left);
+    const right = Math.min(viewWidth, rect.right);
+    const top = Math.max(0, rect.top);
+    const bottom = Math.min(window.innerHeight, rect.bottom);
+    if (right - left < 16 || bottom - top < 16) return false;
+    const fractions = [[.5,.5],[.2,.2],[.8,.2],[.2,.8],[.8,.8]];
+    let blocked = 0;
+    for (const [px,py] of fractions) {
+      const hit = document.elementFromPoint(left + (right-left)*px, top + (bottom-top)*py);
+      if (hit && hit !== element && !element.contains(hit)) blocked++;
+    }
+    return blocked >= 4;
+  }
+
   const overflowPixels = Math.max(0, Math.round(documentWidth - viewWidth));
   if (overflowPixels > 1) {
     const offenders = [];
@@ -68,6 +92,7 @@ export function collectDiagnostics() {
         message: `Element extends ${item.spill}px past right viewport edge (page overflows ${overflowPixels}px)`,
         suggestion: style.whiteSpace === 'nowrap' ? 'Review white-space: nowrap, add wrapping or constrain the container.' : style.minWidth !== 'auto' && style.minWidth !== '0px' ? 'Review min-width and fixed dimensions at narrow widths.' : 'Review fixed widths, flex/grid minimum sizing and available wrapping.',
         measurement: item.spill,
+        rect: evidenceRect(item.rect),
         computed: { display: style.display, width: style.width, minWidth: style.minWidth, overflowX: style.overflowX, whiteSpace: style.whiteSpace }
       });
     }
@@ -101,7 +126,10 @@ export function collectDiagnostics() {
     const protrudesRight = r.right > viewWidth + 2 && r.left < viewWidth;
     const protrudesLeft = r.left < -2 && r.right > 0;
     if (protrudesRight || protrudesLeft || parentOverflow === 'clipped') {
-      issues.push({ type: 'clipped-control', severity: 'medium', selector, message: parentOverflow === 'clipped' ? 'Interactive control may be clipped by an overflow container' : 'Interactive control extends beyond the viewport edge', suggestion: 'Inspect ancestor overflow, fixed widths and responsive positioning.' });
+      issues.push({ type: 'clipped-control', severity: 'medium', selector, rect: evidenceRect(r), computed: { width: style.width, minWidth: style.minWidth, position: style.position, zIndex: style.zIndex, overflowX: style.overflowX }, message: parentOverflow === 'clipped' ? 'Interactive control may be clipped by an overflow container' : 'Interactive control extends beyond the viewport edge', suggestion: 'Inspect ancestor overflow, fixed widths and responsive positioning.' });
+    }
+    if (!parentOverflow && !protrudesRight && !protrudesLeft && occlusion(element, r)) {
+      issues.push({ type: 'occluded-control', severity: 'medium', selector, rect: evidenceRect(r), computed: { position: style.position, zIndex: style.zIndex, pointerEvents: style.pointerEvents }, message: 'Interactive control is obscured at most tested hit points', suggestion: 'Inspect overlays, stacking contexts, and whether the obstruction is intentional.' });
     }
     if (r.width > 0 && r.height > 0 && (r.width < 24 || r.height < 24) && r.right > 0 && r.left < viewWidth && r.bottom > 0) {
       issues.push({ type: 'small-target', severity: 'info', selector, message: `Control measures ${Math.round(r.width)} × ${Math.round(r.height)}px`, suggestion: 'Review touch target size and spacing; WCAG exceptions may apply.' });

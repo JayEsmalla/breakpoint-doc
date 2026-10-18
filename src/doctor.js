@@ -17,7 +17,10 @@ export function scrub(value) {
   text = text.replace(/https?:\/\/[^\s<>"']+/gi, match => {
     try { return publicUrl(match.replace(/[),.;]+$/, '')); } catch { return '[url]'; }
   });
-  text = text.replace(/\b(token|apikey|api_key|secret|password|authorization|session|access_key)\s*[:=]\s*[^\s&;]+/gi, '$1=[redacted]');
+  text = text.replace(/\bBearer\s+[a-z0-9._~+\/-]+/gi,'Bearer [redacted]');
+  text = text.replace(/\b(?:ghp_|gho_|ghu_|github_pat_|sk-)[a-z0-9_-]{16,}/gi,'[credential]');
+  text = text.replace(/(["']?\b(?:token|apikey|api_key|secret|password|authorization|session|access_key|client_secret|refresh_token)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s&;]+?)(?=\s|[},;]|$)/gi,'$1[redacted]');
+  text = text.replace(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi,'[email]');
   return text.slice(0, 360);
 }
 

@@ -3,11 +3,25 @@ export function collectDiagnostics() {
   const viewWidth = document.documentElement.clientWidth;
   const documentWidth = document.documentElement.scrollWidth;
   const issues = [];
-  const allElements = document.querySelectorAll('body *');
-  const candidateElements = Array.from(allElements).slice(0, 9000);
+  // Bounded traversal: avoid materializing a huge querySelectorAll('body *')
+  // collection in apps containing tens or hundreds of thousands of nodes.
+  const candidateElements = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+  let node;
+  while (candidateElements.length < 9000 && (node = walker.nextNode())) candidateElements.push(node);
+  const truncatedBySize = Boolean(walker.nextNode());
   const interactive = 'a[href],button,input:not([type="hidden"]),select,textarea,[role="button"],[role="link"]';
 
   function getSelector(element) {
+    // Prefer an intentional, unique test locator over DOM position or generated
+    // class names. This survives common sibling insertions and reduces churn.
+    for (const key of ['data-testid','data-qa','data-test']) {
+      const value = element.getAttribute(key);
+      if (value && value.length <= 80 && /^[a-z][\w.-]*$/i.test(value)) {
+        const selector = '[' + key + '="' + CSS.escape(value) + '"]';
+        if (document.querySelectorAll(selector).length === 1) return selector;
+      }
+    }
     if (element.id && CSS.escape) return `#${CSS.escape(element.id)}`;
     const parts = [];
     let current = element;
@@ -82,7 +96,13 @@ export function collectDiagnostics() {
     }
     // Identify the deepest meaningful candidates rather than reporting every ancestor.
     offenders.sort((a, b) => b.spill - a.spill || a.rect.width - b.rect.width);
-    const picked = offenders.filter((item, i) => !offenders.slice(0, i).some(other => other.element.contains(item.element) && Math.abs(other.spill - item.spill) <= 2)).slice(0, 3);
+    // Keep only three representative offenders; avoid O(n²) slice+ancestor
+    // comparisons for pages with thousands of overflowing descendants.
+    const picked = [];
+    for (const item of offenders) {
+      if (!picked.some(other => other.element.contains(item.element) && Math.abs(other.spill - item.spill) <= 2)) picked.push(item);
+      if (picked.length >= 3) break;
+    }
     if (!picked.length) {
       issues.push({ type: 'page-overflow', severity: 'high', selector: 'html', message: `Document extends ${overflowPixels}px beyond viewport`, suggestion: 'Check wide children, fixed widths and min-width in the page layout.', measurement: overflowPixels });
     }
@@ -136,5 +156,5 @@ export function collectDiagnostics() {
       issues.push({ type: 'small-target', severity: 'info', selector, message: `Control measures ${Math.round(r.width)} × ${Math.round(r.height)}px`, suggestion: 'Review touch target size and spacing; WCAG exceptions may apply.' });
     }
   }
-  return { overflowPixels, issues: issues.slice(0, 40), visitedElements: candidateElements.length, truncated: issues.length > 40 || allElements.length > 9000 };
+  return { overflowPixels, issues: issues.slice(0, 40), visitedElements: candidateElements.length, truncated: issues.length > 40 || truncatedBySize };
 }

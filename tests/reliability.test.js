@@ -19,6 +19,9 @@ const output = () => mkdtemp(path.join(tmpdir(), 'bd-http-'));
 test('privacy, options and missing-browser preflight', async () => {
   assert.equal(publicUrl('http://localhost:3000/test?token=secret#panel'), 'http://localhost:3000/test');
   assert.equal(scrub('http://localhost/test?token=secret'), 'http://localhost/test');
+  assert.ok(!scrub('Authorization: Bearer ghp_abcdefghijklmnopqrstuvwxyz').includes('abcdefghijklmnopqrstuvwxyz'));
+  assert.ok(!scrub('Contact support@my-site.example with password=abcd123').includes('support@my-site.example'));
+  assert.ok(!scrub('{"token":"longsecretfoo"}').includes('longsecretfoo'));
   assert.deepEqual(parseArgs(['scan','http://localhost','--disable-rules','small-target']).disabledRules, ['small-target']);
   assert.equal(parseArgs(['doctor']).command, 'doctor');
   assert.throws(() => parseArgs(['scan','http://localhost','--disable-rules','made-up']), /Unknown rule/);

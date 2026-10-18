@@ -22,9 +22,10 @@ export function decorateIssues(issues, targetUrl, disabledRules = [], severityOv
     statePath,
     message: scrub(item.message),
     suggestion: scrub(item.suggestion),
-    selector: String(item.selector || 'document').slice(0, 220),
+    selector: scrub(String(item.selector || 'document')).slice(0, 220),
+    ...(item.computed ? {computed:Object.fromEntries(Object.entries(item.computed).map(([key,value])=>[key,scrub(value)]))} : {}),
     confidence: item.confidence || 'suspected',
-    reproduction: { url: publicUrl(targetUrl), selector: String(item.selector || 'document').slice(0, 220), statePath }
+    reproduction: { url: publicUrl(targetUrl), selector: scrub(String(item.selector || 'document')).slice(0, 220), statePath }
   }));
 }
 

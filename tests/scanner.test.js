@@ -8,6 +8,7 @@ import { collectDiagnostics } from '../src/detectors.js';
 import { renderHtmlReport } from '../src/report.js';
 import { parseArgs } from '../bin/breakpoint-doctor.js';
 import { scanSite } from '../src/scanner.js';
+import { chromium } from 'playwright';
 
 const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -46,6 +47,7 @@ test('failed viewport is never represented as clean in a report', () => {
   assert.match(html,/HTTP 503/);
   assert.ok(!html.includes('Looking good here.'));
   assert.ok(html.includes('Incomplete inspection:'));
+  assert.ok(html.includes('Content-Security-Policy'));
   assert.ok(!html.includes('No blocking issues</span>'));
   assert.ok(!html.includes('0px document overflow · 0 DOM elements inspected'));
 });
@@ -85,6 +87,49 @@ test('real Chromium detects overflow and tiny targets, clean fixture stays clean
   assert.ok(clean.viewports.every(v=>v.issues.length === 0), JSON.stringify(clean.viewports));
 });
 
+
+test('unique data-testid locator stays stable when siblings are inserted',async ()=>{
+  const out=await mkdtemp(path.join(tmpdir(),'bd-id-stability-'));
+  const scan=async (extra) => scanSite({url:'http://fixture.invalid/stable',
+    htmlContent:'<!doctype html><style>body{margin:0}</style><div>'+extra+
+      '<div data-testid="overflow-target" style="width:650px;height:30px"></div></div>',
+    widths:[320],out:out,screenshots:false});
+  const first=await scan('');
+  const second=await scan('<div>New sibling</div>');
+  const a=first.findings.find(f=>f.ruleId==='page-overflow' && f.selector.includes('overflow-target'));
+  const b=second.findings.find(f=>f.ruleId==='page-overflow' && f.selector.includes('overflow-target'));
+  assert.ok(a,JSON.stringify(first.findings));
+  assert.ok(b,JSON.stringify(second.findings));
+  assert.equal(a.id,b.id);
+});
+
+test('large DOM inspection is bounded and visibly incomplete',async ()=>{
+  const output=await mkdtemp(path.join(tmpdir(),'bd-huge-dom-'));
+  const html='<style>body{margin:0}</style>'+ '<div style="width:120px;height:1px"></div>'.repeat(10500);
+  const result=await scanSite({url:'http://fixture.invalid/huge',htmlContent:html,widths:[390],out:output,
+    screenshots:false,maxDurationMs:30000});
+  assert.equal(result.status,'partial');
+  assert.equal(result.viewports[0].visitedElements,9000);
+  assert.equal(result.viewports[0].truncated,true);
+  assert.equal(result.coverage.completed,1);
+});
+test('report CSP allows own screenshot while blocking inline script injection',async ()=>{
+  const output=await mkdtemp(path.join(tmpdir(),'bd-report-csp-'));
+  const scan=await scanSite({url:'http://fixture.invalid/test',
+    htmlContent:'<!doctype html><style>body{margin:0}#wide{width:630px;height:30px}</style><div id="wide"></div>',
+    widths:[320],screenshots:true,out:output});
+  const browser=await chromium.launch();
+  try {
+    const page=await browser.newPage();
+    await page.goto(scan.reportPath);
+    const images=await page.locator('.preview img').evaluateAll(items=>items.map(img=>({complete:img.complete,width:img.naturalWidth})));
+    assert.equal(images.length,1);
+    assert.equal(images[0].complete,true);
+    assert.ok(images[0].width>0,JSON.stringify(images));
+    const executed=await page.evaluate(()=>Boolean(window.__injectedTest));
+    assert.equal(executed,false);
+  } finally {await browser.close();}
+});
 
 test('automatic audit catches broken images and JavaScript runtime errors', async () => {
   const output = await mkdtemp(path.join(tmpdir(), 'breakpoint-audit-'));

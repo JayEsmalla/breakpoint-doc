@@ -1,5 +1,7 @@
 node_modules/
 breakpoint-report/
 coverage/
+dist/
+release/
 .env
 .DS_Store

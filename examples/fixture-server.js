@@ -13,7 +13,7 @@ article{min-width:0;padding:16px;background:#f3f4f6;border-radius:10px}
 <div class="cards"><article><h2>First card</h2><p>Fluid width.</p></article>
 <article><h2>Second card</h2><p>Responsive layout.</p></article></div></main></body></html>`;
 createServer((request, response) => {
-  if (request.method !== 'GET' || !['/','/about'].includes(new URL(request.url, 'http://localhost').pathname)) {
+  if (!['GET','HEAD'].includes(request.method) || !['/','/about'].includes(new URL(request.url, 'http://localhost').pathname)) {
     response.writeHead(404); response.end('not found'); return;
   }
   response.setHeader('Content-Type','text/html; charset=utf-8'); response.end(html);

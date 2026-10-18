@@ -1,6 +1,5 @@
 import { chromium } from 'playwright';
-import { access, mkdir, stat, writeFile, unlink } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { mkdir, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 export function publicUrl(value) {
@@ -37,22 +36,16 @@ export async function checkSetup({ out = './breakpoint-report', targetUrl, brows
   } catch {
     record('Report directory writable', false, 'Choose a writable path with --out.');
   }
-  const executable = browserPath || chromium.executablePath();
-  let executableOk = false;
+  // chromium.executablePath() points to the full Chromium browser even when
+  // Playwright's default headless shell is correctly installed by --only-shell.
+  // Launch the actual configured browser instead of checking the wrong path.
+  let browser;
   try {
-    await access(executable, constants.X_OK);
-    executableOk = (await stat(executable)).isFile();
-  } catch { /* browser absent */ }
-  record('Chromium executable exists', executableOk, executableOk ? '' : 'Run: npx playwright install chromium');
-  if (executableOk) {
-    let browser;
-    try {
-      browser = await chromium.launch({ headless: true, ...(browserPath ? { executablePath: browserPath } : {}) });
-      record('Chromium launch', true);
-    } catch (error) {
-      record('Chromium launch', false, 'Check operating system dependencies or reinstall Chromium. ' + scrub(error.message));
-    } finally { await browser?.close(); }
-  }
+    browser = await chromium.launch({ headless: true, ...(browserPath ? { executablePath: browserPath } : {}) });
+    record('Chromium launch', true);
+  } catch (error) {
+    record('Chromium launch', false, 'Run: npx playwright install chromium. Check operating system dependencies. ' + scrub(error.message));
+  } finally { await browser?.close(); }
   if (targetUrl) {
     try {
       const target = new URL(targetUrl);

@@ -6,6 +6,14 @@ A JavaScript CLI that loads a website in Chromium across viewport widths, identi
 
 > **Status:** M1–M4 implemented; M5 engineering checks pass for v0.6.0-alpha.1. Independent user/real-site, privacy and npm-publication gates remain open. **Not a v1 release.** Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
 
+## Download without cloning or installing Node
+
+An automated [portable package workflow](.github/workflows/portable.yml) builds OS-specific alpha archives containing **Node.js, the CLI, its dependencies and matching Chromium headless shell**. After a successful workflow, download the Windows ZIP, Linux tarball or macOS tarball from the workflow's **Artifacts** section. No Git clone, npm setup or separate browser download is needed.
+
+**Windows:** extract the ZIP and double-click `Scan Website.cmd`, or run `.\\breakpoint-doctor.cmd scan http://localhost:5173` in a terminal. **Linux/macOS:** extract, then run `./breakpoint-doctor scan http://localhost:5173`.
+
+These are unsigned, portable **alpha** distributions, not a certified one-file EXE, system installer or macOS signed application. The OS may block execution of unsigned files. Check provenance and SHA-256 checksums; never run an unverified binary. Files can be attached to a public GitHub prerelease after owner approval and QA. See [portable downloads and caveats](docs/PORTABLE_DOWNLOADS.md).
+
 ## Quick start
 
 Requires Node.js 22+.

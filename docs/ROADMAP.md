@@ -57,7 +57,9 @@ See [M4 validation evidence](VALIDATION_M4.md).
 - [ ] Independent user onboarding trials and 12+ reviewed real staging sites.
 - [ ] Security/privacy audit, npm ownership verification and maintainer-approved publication/release.
 
-See [M5 release readiness](M5_RELEASE_READINESS.md). The alpha developer preview is **not published to npm and is not a v1/general-availability release**.
+- [x] Portable per-OS release packaging workflow with a bundled Node runtime and Chromium headless shell, plus an owned-site smoke test (pre-release download artifacts; still requires successful all-OS CI before public sharing).
+
+See [M5 release readiness](M5_RELEASE_READINESS.md) and [portable download instructions](PORTABLE_DOWNLOADS.md). The alpha developer preview is **not published to npm and is not a v1/general-availability release**.
 
 ## Explicit non-goals in M1/M2
 No automatic code mutation, AI dependence, cloud uploads, broad web crawling, unsafe interactions, universal website score or WCAG certification.

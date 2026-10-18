@@ -66,12 +66,19 @@ export function validateBaseline(b) {
   }
   return b;
 }
+function sameTarget(a, b) {
+  const source = new URL(a), target = new URL(b);
+  // Allow an ephemeral localhost development port to change, but never
+  // equate different protocols, hostnames or production ports.
+  const local = ['localhost','127.0.0.1','[::1]'].includes(source.hostname);
+  return source.protocol === target.protocol && source.hostname === target.hostname &&
+    source.pathname === target.pathname && (local || source.port === target.port);
+}
 export function compareBaseline(baseline, scan, {failOn='new-confirmed-high',strictCoverage=true,recheck=null}={}) {
   validateBaseline(baseline);
   validateScan(scan);
   if (!['new-confirmed-high','new-confirmed-medium','none'].includes(failOn)) throw new Error('Invalid --fail-on policy.');
-  const comparable = new URL(scan.url).hostname === new URL(baseline.source.origin).hostname &&
-    new URL(scan.url).pathname === baseline.source.pathname;
+  const comparable = sameTarget(baseline.source.origin + baseline.source.pathname, scan.url);
   const matchingRules = JSON.stringify(baseline.ruleConfiguration) === JSON.stringify(scan.ruleConfiguration);
   const oldCoverage = new Set(baseline.coverage);
   const newCoverage = new Set(coverageKeys(scan));
@@ -86,8 +93,7 @@ export function compareBaseline(baseline, scan, {failOn='new-confirmed-high',str
   const curr = new Map(scan.findings.map(f=>[fingerprint(f),f]));
   if (recheck) validateScan(recheck);
   const recheckSameScope = !recheck || (
-    new URL(recheck.url).hostname === new URL(scan.url).hostname &&
-    new URL(recheck.url).pathname === new URL(scan.url).pathname &&
+    sameTarget(scan.url, recheck.url) &&
     JSON.stringify(recheck.ruleConfiguration) === JSON.stringify(scan.ruleConfiguration) &&
     recheck.status !== 'error' && recheck.status !== 'partial' &&
     recheck.coverage.completed === recheck.coverage.requested &&

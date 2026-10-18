@@ -70,6 +70,10 @@ test('incomplete scan and mismatched scope never silently resolve issues',()=>{
   const disabled=makeScan(); disabled.ruleConfiguration.disabled=['page-overflow'];
   assert.equal(compareBaseline(baseline,disabled,{strictCoverage:false}).gate,'incomplete');
   assert.equal(compareBaseline(baseline,makeScan([],{url:'http://example.com/'}),{strictCoverage:false}).gate,'incomplete');
+  assert.equal(compareBaseline(baseline,makeScan([],{url:'https://localhost:3000/'}),{strictCoverage:false}).gate,'incomplete');
+  const production=approveBaseline(makeScan([],{url:'https://example.org:8443/app'}));
+  assert.equal(compareBaseline(production,makeScan([],{url:'https://example.org:9443/app'}),{strictCoverage:false}).gate,'incomplete');
+  assert.equal(compareBaseline(production,makeScan([],{url:'http://example.org:8443/app'}),{strictCoverage:false}).gate,'incomplete');
 });
 test('confidence changes are not falsely called flaky or new',()=>{
   const baseline=approveBaseline(makeScan([found('page-overflow','#wide')]));

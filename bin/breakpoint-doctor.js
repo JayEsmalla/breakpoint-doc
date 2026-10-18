@@ -2,6 +2,9 @@
 import { scanSite, DEFAULT_WIDTHS } from '../src/scanner.js';
 import { checkSetup } from '../src/doctor.js';
 import { validateRules } from '../src/rules.js';
+import { approveBaseline, compareBaseline, comparisonMarkdown, comparisonExitCode, readJson, writeJson } from '../src/baseline.js';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -11,6 +14,8 @@ const HELP = [
   'Usage:',
   '  breakpoint-doctor doctor [URL] [--out DIR]',
   '  breakpoint-doctor scan <http(s)://URL> [options]',
+  '  breakpoint-doctor baseline approve <report.json> --out .breakpoint-baseline.json',
+  '  breakpoint-doctor compare <baseline.json> <report.json> [--out comparison.json]',
   '',
   'Options:',
   '  --widths 320,375,390,768,1024,1440  Viewports (default)',
@@ -27,6 +32,8 @@ const HELP = [
   '  --max-depth 1                         Discovery link depth (0–3)',
   '  --explore                             Inspect safe semantic toggles (opt-in)',
   '  --max-states 20                       Total UI states to inspect (1–40)',
+  '  --fail-on new-confirmed-high          compare policy: new-confirmed-high|new-confirmed-medium|none',
+  '  --allow-partial                        Compare incomplete scans without claiming resolved issues',
   '  --help                                 Show this help',
   '',
   'Exit codes: 0 = no confirmed blocking issues, 1 = confirmed high/medium issues,',
@@ -37,6 +44,30 @@ const HELP = [
 
 export function parseArgs(argv) {
   if (!argv.length || argv.includes('--help') || argv.includes('-h')) return { help: true };
+  if (argv[0] === 'baseline' || argv[0] === 'compare') {
+    const command = argv[0];
+    const approve = command === 'baseline';
+    if (approve && (argv[1] !== 'approve' || !argv[2] || argv[2].startsWith('--')))
+      throw new Error('Usage: baseline approve <report.json> --out <baseline.json>');
+    if (!approve && (!argv[1] || !argv[2] || argv[1].startsWith('--') || argv[2].startsWith('--')))
+      throw new Error('Usage: compare <baseline.json> <report.json> [--out result.json]');
+    const args = approve ? {command:'baseline', report:argv[2], out:'.breakpoint-baseline.json'} :
+      {command:'compare', baseline:argv[1], report:argv[2], out:'breakpoint-report/comparison.json',
+       failOn:'new-confirmed-high', strictCoverage:true};
+    for(let i=approve?3:3;i<argv.length;i++){
+      const flag=argv[i];
+      if (!approve && flag==='--allow-partial') { args.strictCoverage=false; continue; }
+      if (flag==='--out' || (!approve && flag==='--fail-on')) {
+        const value=argv[++i];
+        if(!value || value.startsWith('--')) throw new Error('Missing '+flag+' value.');
+        if(flag==='--out') args.out=value; else args.failOn=value;
+      } else throw new Error('Unknown '+command+' option: '+flag);
+    }
+    if (approve && (!args.out || args.out.endsWith('/'))) throw new Error('Baseline filename is required.');
+    if (!approve && !['new-confirmed-high','new-confirmed-medium','none'].includes(args.failOn))
+      throw new Error('Unknown comparison failure policy.');
+    return args;
+  }
   if (!['scan', 'doctor'].includes(argv[0])) throw new Error('Expected scan or doctor. Run --help for usage.');
   const command = argv[0];
   const urlText = argv[1] && !argv[1].startsWith('--') ? argv[1] : undefined;
@@ -102,6 +133,27 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const args = parseArgs(process.argv.slice(2));
     if (args.help) console.log(HELP);
+    else if (args.command === 'baseline') {
+      const scan = await readJson(args.report);
+      const baseline = approveBaseline(scan);
+      await mkdir(path.dirname(resolve(args.out)), {recursive:true});
+      await writeJson(args.out, baseline);
+      console.log('Approved baseline written: '+resolve(args.out));
+      console.log('Review before committing: baselines include route paths and DOM selectors.');
+    }
+    else if (args.command === 'compare') {
+      const comparison = compareBaseline(await readJson(args.baseline), await readJson(args.report),
+        {failOn:args.failOn,strictCoverage:args.strictCoverage});
+      await mkdir(path.dirname(resolve(args.out)), {recursive:true});
+      await writeJson(args.out, comparison);
+      const summary = comparisonMarkdown(comparison);
+      const summaryFile=resolve(args.out).replace(/\.json$/i,'.md');
+      await writeFile(summaryFile,summary+'\n','utf8');
+      if(process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY,summary+'\n','utf8');
+      console.log(summary);
+      console.log('Comparison JSON: '+resolve(args.out));
+      process.exitCode=comparisonExitCode(comparison);
+    }
     else if (args.command === 'doctor') {
       const result = await checkSetup({ out: args.out, targetUrl: args.url });
       for (const check of result.checks) console.log((check.ok ? '[ok] ' : '[FAIL] ') + check.name + (check.guidance ? ': ' + check.guidance : ''));

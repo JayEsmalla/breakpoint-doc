@@ -11,6 +11,7 @@ import { RULES, validateRules } from './rules.js';
 import { planRoutes, discoverApproved } from './scope.js';
 import { createHash } from 'node:crypto';
 import { inspectSafeControls } from './states.js';
+import { SAFETY_POLICY, installReadOnlyGuards, safetyTotals, combineSafetyCounters } from './safety.js';
 
 export const DEFAULT_WIDTHS = [320, 375, 390, 768, 1024, 1440];
 const MAX_EVENTS = 20;
@@ -31,7 +32,7 @@ function parseTarget(url) {
   return target;
 }
 
-async function snapshot(context, target, timeout, htmlContent) {
+async function snapshot(context, target, timeout, htmlContent, guard) {
   const page = await context.newPage();
   const browserFindings = [];
   let dropped = 0;
@@ -49,7 +50,7 @@ async function snapshot(context, target, timeout, htmlContent) {
     suggestion: 'Inspect the browser console and the first failing script.'
   }));
   page.on('requestfailed', request => {
-    if (!sameOrigin(request.url())) return;
+    if (guard?.isIntentionallyBlocked(request) || !sameOrigin(request.url())) return;
     const error = request.failure()?.errorText || 'unknown error';
     if (/ERR_ABORTED/i.test(error)) return;
     record({ type: 'failed-request', severity: 'medium', selector: 'network',
@@ -120,6 +121,8 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   const selection = discover ? await discoverApproved(browser, target.href, plan, { maxDepth, timeout }) :
     { routes: plan.selected, skipped: plan.skipped, discovered: plan.selected.map((path, depth) => ({path, depth:0})) };
   const routeStats = selection.routes.map(route => ({path:route, checked:0, failed:0}));
+  const safety = safetyTotals();
+  if (selection.safety) combineSafetyCounters(safety, selection.safety);
   async function inspect(width, route = target.pathname) {
     if (Date.now() - started >= maxDurationMs) {
       emit({phase:'viewport',route,width,status:'error',issues:0});
@@ -128,28 +131,26 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
     }
     const routeTarget = route === target.pathname ? target : new URL(route, target);
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1, serviceWorkers:'block' });
-    if (explore) await context.routeWebSocket('**/*', socket => socket.close());
-    await context.route('**/*', handler => {
-      const request = handler.request();
-      if (request.isNavigationRequest()) {
-        const candidate = new URL(request.url());
-        if (candidate.origin !== target.origin || candidate.pathname !== route || candidate.search) {
-          // Original single-page target may include explicitly supplied parameters.
-          if (!(route === target.pathname && candidate.origin === target.origin && candidate.pathname === target.pathname && candidate.search === target.search)) return handler.abort();
-        }
-      }
-      return handler.continue();
-    });
+    let guard;
+    try {
+      guard = await installReadOnlyGuards(context, { allowNavigation: raw => {
+        try {
+          const candidate = new URL(raw);
+          return candidate.origin === target.origin && candidate.pathname === route &&
+            (!candidate.search || (route === target.pathname && candidate.search === target.search));
+        } catch { return false; }
+      } });
+    } catch (error) { await context.close().catch(() => {}); throw error; }
     const prefix = selection.routes.length > 1 ? createHash('sha256').update(route).digest('hex').slice(0,8) + '-' : '';
     let first;
     try {
-      first = await snapshot(context, routeTarget, timeout, htmlContent);
+      first = await snapshot(context, routeTarget, timeout, htmlContent, guard);
       const { diagnostics } = first;
       diagnostics.issues = decorateIssues(diagnostics.issues, routeTarget.href, disabledRules, severityOverrides);
       const confirmable = diagnostics.issues.filter(issue => issue.severity !== 'info');
       if (confirmable.length) {
         try {
-          const second = await snapshot(context, routeTarget, timeout, htmlContent);
+          const second = await snapshot(context, routeTarget, timeout, htmlContent, guard);
           try {
             const repeated = new Set(decorateIssues(second.diagnostics.issues, routeTarget.href, disabledRules, severityOverrides).map(issue => issue.id));
             for (const issue of diagnostics.issues) {
@@ -181,15 +182,11 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
           if (widthPx < 5 || heightPx < 5) continue;
           const filename = prefix + 'evidence-' + width + '-' + index + '.png';
           try {
-            const locator = first.page.locator(issue.selector).first();
-            await locator.evaluate(element => element.setAttribute('data-bp-evidence', ''));
-            try {
-              await first.page.screenshot({ path: path.join(output, filename), clip: { x, y, width: widthPx, height: heightPx },
-                animations: 'disabled', timeout, style: '[data-bp-evidence] { outline: 3px solid #ff6475 !important; outline-offset: 2px !important; }' });
-              issue.evidenceScreenshot = filename;
-            } finally {
-              await locator.evaluate(element => element.removeAttribute('data-bp-evidence')).catch(() => {});
-            }
+            // Evidence crops should not alter the page DOM, even temporarily.
+            // Attribute highlighting can trigger MutationObservers and app logic.
+            await first.page.screenshot({ path: path.join(output, filename), clip: { x, y, width: widthPx, height: heightPx },
+              animations: 'disabled', timeout });
+            issue.evidenceScreenshot = filename;
           } catch { /* A crop is optional evidence, not a scan failure. */ }
         }
       }
@@ -216,6 +213,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
     } finally {
       await first?.page.close().catch(() => {});
       await context.close().catch(() => {});
+      combineSafetyCounters(safety, guard.counts);
     }
   }
   let adaptive = null;
@@ -237,6 +235,9 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
       }
     }
   }
+  if (safety.blockedMutations) warnings.push('Non-invasive protection blocked ' + safety.blockedMutations + ' non-read-only requests; dynamic content may be missing.');
+  if (safety.blockedNavigations) warnings.push('Non-invasive protection blocked ' + safety.blockedNavigations + ' unapproved navigations; some content may be missing.');
+  if (safety.blockedWebSockets) notices.push('Non-invasive protection blocked ' + safety.blockedWebSockets + ' WebSocket connections (including possible development hot reload).');
   const completed = viewports.filter(v => v.status === 'complete').length;
   for (const entry of routeStats) {
     entry.checked = viewports.filter(v => v.route === entry.path && v.status === 'complete').length;
@@ -250,10 +251,11 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   }
   const status = completed === 0 ? 'error' : completed < viewports.length || selection.skipped.length || warnings.length || viewports.some(v => v.truncated) || stateViews.some(v => v.truncated) || skippedActions.length > 0 ? 'partial' :
     findings.length ? 'issues' : 'clean';
-  const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.7.1-alpha.1', scannedAt: new Date().toISOString(),
+  const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.7.2-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,
     warnings, notices, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
-    ruleConfiguration:{available:Object.keys(RULES).sort(),disabled:[...disabledRules].sort(),severityOverrides:Object.fromEntries(Object.entries(severityOverrides).sort())},
+    ruleConfiguration:{available:Object.keys(RULES).sort(),disabled:[...disabledRules].sort(),severityOverrides:Object.fromEntries(Object.entries(severityOverrides).sort()),requestPolicy:SAFETY_POLICY},
+    safety: {policy:SAFETY_POLICY,...safety, isolatedBrowser:true, note:'GET/HEAD can still have server-side effects. Browser scripts still execute in temporary isolated storage. This is not a sandbox.'},
     exploration: {enabled:explore, mode:discover ? 'approved-link-discovery' : 'explicit-routes', routes:routeStats,
       skippedRoutes:selection.skipped, skippedActions, inspectedStates:stateViews.length, attemptedStates,
       maxPages, maxDepth, maxStates},

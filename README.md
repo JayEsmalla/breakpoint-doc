@@ -4,7 +4,7 @@
 
 A JavaScript CLI that loads a website in Chromium across viewport widths, identifies likely responsive problems plus basic browser runtime/resource failures, and generates an evidence-backed HTML + JSON report. The future vision is **autonomous frontend QA**: safe route/UI-state exploration, width-boundary diagnosis, and regression reporting.
 
-> **Status:** v0.7.1-alpha.1 stabilization preview; M1–M4 implemented and reliability refinement underway. Independent user/real-site, privacy and npm-publication gates remain open. **Not a v1 release.** Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
+> **Status:** v0.7.2-alpha.1 stabilization preview; M1–M4 implemented and reliability refinement underway. Independent user/real-site, privacy and npm-publication gates remain open. **Not a v1 release.** Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
 
 ## Download without cloning or installing Node
 
@@ -13,6 +13,22 @@ An automated [portable package workflow](.github/workflows/portable.yml) builds 
 **Windows:** extract the ZIP and double-click `Scan Website.cmd`, or run `.\\breakpoint-doctor.cmd scan http://localhost:5173` in a terminal. **Linux/macOS:** extract, then run `./breakpoint-doctor scan http://localhost:5173`.
 
 These are unsigned, portable **alpha** distributions, not a certified one-file EXE, system installer or macOS signed application. The OS may block execution of unsigned files. Check provenance and SHA-256 checksums; never run an unverified binary. These unsigned builds are clearly marked as automatic development prereleases, not stable production releases. See [portable downloads and caveats](docs/PORTABLE_DOWNLOADS.md).
+
+## Non-invasive browser inspection (default)
+
+The CLI uses a **separate temporary Chromium profile** and reads the running website through Playwright. It does **not** patch source files, inject code into a repository, install dependencies in the application, or send a pull request. DOM diagnostics run temporarily in the isolated browser; output is saved to the chosen report directory.
+
+By default, all scan routes—including approved-page discovery—block **non-GET/HEAD HTTP methods** and **WebSocket connections**. Unexpected page navigations are blocked, and no existing browser login/cookie profile is imported. UI clicking is **off** unless the developer explicitly supplies `--explore`. Cropped screenshots no longer insert highlight attributes into the live DOM.
+
+If an application attempts a POST/PATCH/DELETE request during page load, the scanner records the blocked attempt and marks the run **partial** because some UI may be missing. Partial scans now exit **3 by default** rather than reporting success. To produce a non-gating report, `--allow-incomplete` permits exit 0 for nonblocking partial results, but **does not change the request-safety policy**.
+
+```bash
+breakpoint-doctor scan http://localhost:5173 --profile quick --open
+# Opt-in UI interaction exploration (browser DOM changes may occur):
+breakpoint-doctor scan http://localhost:5173 --explore
+```
+
+**Not a complete sandbox:** GET/HEAD endpoints can be poorly designed and have server-side effects. Page JavaScript still executes and can change temporary client-side state; scripts may use communication channels not covered by HTTP/WebSocket guards. Scan only authorized local/staging sites using disposable test data. Browser screenshots and DOM-derived reports can contain sensitive data. For technical details, see [browser safety contract](docs/NON_INVASIVE_MODE.md).
 
 ## One-command scan profiles (v0.7 preview)
 
@@ -96,7 +112,8 @@ Comparison defaults to failing **only new, confirmed, high-severity findings** (
 | `--responsive` | Sample extra widths and refine observed breakpoint transitions |
 | `--disable-rules small-target` | Suppress named rules; unknown rules cause a configuration error |
 | `--severity page-overflow=info` | Rule severity override: high, medium, info or off |
-| `--strict-coverage` | Exit 3 if scan is partial |
+| `--strict-coverage` | Explicitly require complete scan (already default for CLI) |
+| `--allow-incomplete` | Permit partial results without CI failure; safety blocking stays enabled |
 | `--routes /,/shop,/about` | Explicit same-origin approved paths; no queries/fragments |
 | `--discover` | Traverse links **only** to approved paths (requires `--routes`) |
 | `--max-pages 5` | Max pages scanned (1–20) |
@@ -119,7 +136,7 @@ Use `BREAKPOINT_DOCTOR_CHROMIUM=/path/to/chromium` to point at an already-instal
 - **Suspected obstruction:** hit-test important controls to identify possible overlays; verify manually because legitimate UI layers exist.
 - **M2 responsive mode:** extra sampled widths, bounded width-transition refinement, grouped issues, sampled failure ranges, and best-effort highlighted evidence crops. This is not exhaustive testing of every pixel width.
 
-**Exit codes:** `0` no confirmed high/medium findings (not a bug-free guarantee); `1` confirmed high/medium finding; `2` fatal/setup error; `3` incomplete scan with `--strict-coverage`. Suspected issues are visible but do not fail CI by default. Partial without strict coverage can exit 0; inspect coverage in the report.
+**Exit codes:** `0` no confirmed high/medium findings (not a bug-free guarantee); `1` confirmed high/medium finding; `2` fatal/setup error; `3` incomplete scan with `--strict-coverage`. Suspected issues are visible but do not fail CI by default. CLI defaults to strict coverage, so partial scans exit 3. `--allow-incomplete` changes only the exit code, not safety checks.
 
 **Limitations:** Route discovery and limited semantic state clicks are now available by explicit opt-in. No login automation, general-purpose clicking, form submission, exact source-line attribution or complete carousel/shadow DOM coverage. Adaptive widths only bracket observed transitions, not all possible failures. To confirm a finding the scanner may load the supplied page a second time. Only scan authorized development/staging targets.
 

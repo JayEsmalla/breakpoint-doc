@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.2-alpha.1] — Non-invasive default
+
+- Browser/network request policy blocks all non-GET/HEAD methods and WebSockets during passive scans and approved route discovery, without altering application source files.
+- Default CLI treats blocked writes and unsafe navigation as partial coverage (exit 3); an explicit `--allow-incomplete` affects exit policy only.
+- Rejecting intentionally blocked requests no longer generates ordinary network-failure defects.
+- Record aggregate safety events in HTML/JSON reports, and version the policy for regression-baseline compatibility.
+- Evidence cropping no longer changes DOM attributes for highlighting.
+- Add browser-backed regression fixtures that attempt POST/PATCH/DELETE and WebSockets during page load and route discovery.
+- Important: GET requests and page scripts can still have side effects. Not an isolation/security guarantee.
+
+
 ## [0.7.1-alpha.1] — Stabilization hardening
 
 - More accurate target matching in regression baselines: reject different protocols and production ports while allowing local ephemeral ports.

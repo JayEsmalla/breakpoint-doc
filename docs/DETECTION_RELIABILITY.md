@@ -33,6 +33,7 @@ Each scan: schema version, tool/browser versions, target origin stripped of sens
 - Error budgets, runtime benchmarks, precision and recall are measured in CI and documented; never silently inflate severity.
 
 ## Browser safety and privacy
+- [Implemented] Default non-invasive request policy aborts non-GET/HEAD requests, blocks WebSockets, uses isolated browser profiles and never imports user cookies; see [NON_INVASIVE_MODE.md](NON_INVASIVE_MODE.md). GET endpoints and page scripts can still cause effects.
 - Default targets: developer-owned localhost or explicit staging origin. No unsolicited public-web crawling or automatic credential discovery.
 - Future discovery: strict same-origin policy, path allowlist, robots policy decision, max-pages/depth/actions/duration. GET links can have side effects; opt-in exploration with dry-run previews and explicit exclusions for logout, checkout, payment, publish, delete, invite, upload and mutation.
 - Do not automatically fill or submit forms. Authenticated sessions require explicit user-provided local storage state; never upload or commit it.

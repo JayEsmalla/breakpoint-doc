@@ -2,10 +2,10 @@
   "kind": "breakpoint-doctor-approved-baseline",
   "baselineSchema": 1,
   "scanSchema": 1,
-  "approvedAt": "2026-10-18T18:58:48.999Z",
+  "approvedAt": "2026-10-18T20:47:30.194Z",
   "source": {
-    "toolVersion": "0.5.0-alpha.1",
-    "origin": "http://127.0.0.1:45271",
+    "toolVersion": "0.7.2-alpha.1",
+    "origin": "http://127.0.0.1:47154",
     "pathname": "/"
   },
   "coverage": [
@@ -26,7 +26,8 @@
       "small-target"
     ],
     "disabled": [],
-    "severityOverrides": {}
+    "severityOverrides": {},
+    "requestPolicy": "non-invasive-v1"
   },
   "findings": []
 }

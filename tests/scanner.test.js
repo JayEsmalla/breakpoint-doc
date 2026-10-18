@@ -18,6 +18,8 @@ test('quick and deep profiles keep explicit options and opt-in safety', () => {
   assert.equal(quick.screenshots,false);
   assert.equal(quick.strictCoverage,true);
   assert.equal(quick.explore,false);
+  assert.equal(quick.strictCoverage,true);
+  assert.equal(parseArgs(['scan','http://localhost','--profile','quick','--allow-incomplete']).strictCoverage,false);
   const custom = parseArgs(['scan','http://localhost','--profile','quick','--widths','375,768','--open']);
   assert.deepEqual(custom.widths,[375,768]);
   assert.equal(custom.open,true);

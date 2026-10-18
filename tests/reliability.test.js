@@ -24,6 +24,8 @@ test('privacy, options and missing-browser preflight', async () => {
   assert.ok(!scrub('{"token":"longsecretfoo"}').includes('longsecretfoo'));
   assert.deepEqual(parseArgs(['scan','http://localhost','--disable-rules','small-target']).disabledRules, ['small-target']);
   assert.equal(parseArgs(['doctor']).command, 'doctor');
+  assert.equal(parseArgs(['scan','http://localhost']).strictCoverage,true);
+  assert.equal(parseArgs(['scan','http://localhost','--allow-incomplete']).strictCoverage,false);
   assert.throws(() => parseArgs(['scan','http://localhost','--disable-rules','made-up']), /Unknown rule/);
   assert.equal(parseArgs(['scan','http://localhost','--severity','page-overflow=info']).severityOverrides['page-overflow'],'info');
   const setup = await checkSetup({out:await output(),browserPath:'/nonexistent/browser'});
@@ -44,6 +46,59 @@ test('reruns remove stale scanner artifacts while preserving unrelated files',as
     await assert.rejects(stat(path.join(out,file)),/ENOENT/);
   assert.equal(await readFile(path.join(out,'notes.txt'),'utf8'),'user notes');
   assert.equal(JSON.parse(await readFile(path.join(out,'report.json'),'utf8')).viewports.length,1);
+});
+
+test('default non-invasive scan blocks POST/PATCH/DELETE and sockets without modifying the server', async () => {
+  const requests=[];
+  await withServer((req,res) => {
+    requests.push({method:req.method,url:req.url});
+    res.setHeader('Content-Type','text/html');
+    if (req.url === '/api/view') {res.end('safe');return;}
+    res.end(`<!doctype html><meta charset="utf-8">
+      <script>
+        fetch('/api/view').catch(()=>{});
+        fetch('/mutate',{method:'POST'}).catch(()=>{});
+        fetch('/mutate',{method:'PATCH'}).catch(()=>{});
+        fetch('/mutate',{method:'DELETE'}).catch(()=>{});
+        const ws = new WebSocket(location.origin.replace('http','ws')+'/socket');
+        ws.onerror=()=>{};
+      </script><main>Read-only inspected page</main>`);
+  },async base => {
+    const result=await scanSite({url:base+'/',widths:[390],out:await output(),screenshots:false});
+    assert.equal(result.safety.policy,'non-invasive-v1');
+    assert.equal(result.safety.blockedMutations,3);
+    assert.equal(result.ruleConfiguration.requestPolicy,'non-invasive-v1');
+    assert.ok(result.safety.blockedWebSockets >= 1);
+    assert.equal(result.status,'partial','mutating requests blocked can mean incomplete content');
+    assert.ok(result.warnings.some(w=>w.includes('non-read-only requests')));
+    assert.ok(requests.some(r=>r.url==='/api/view' && r.method==='GET'));
+    assert.ok(requests.every(r=>['GET','HEAD'].includes(r.method)),JSON.stringify(requests));
+    const html=await readFile(new URL(result.reportPath),'utf8');
+    assert.match(html,/Non-invasive inspection/);
+    assert.match(html,/Inspected with limitations/);
+    assert.match(html,/generated reports are saved in the output folder/);
+    assert.ok(!html.includes('Looking good here.'), 'incomplete scans should not use clean-looking messages');
+    assert.ok(!result.findings.some(f=>f.ruleId==='failed-request' && f.message.includes('/mutate')),
+      'intentional safety blocks are not incorrectly classified as server errors');
+  });
+});
+
+test('discovery blocks mutating requests as well', async () => {
+  const methods=[];
+  await withServer((req,res) => {
+    methods.push(req.method+' '+req.url);
+    res.setHeader('Content-Type','text/html');
+    res.end(req.url==='/'
+      ? '<script>fetch("/mutate",{method:"POST"}).catch(()=>{})</script><a href="/help">Help</a>'
+      : '<p>Help page</p>');
+  }, async base=>{
+    const result=await scanSite({url:base+'/',routes:['/help'],discover:true,maxDepth:1,
+      widths:[390],screenshots:false,out:await output()});
+    assert.equal(result.exploration.routes.length,2);
+    assert.ok(result.safety.blockedMutations>=1);
+    assert.equal(result.status,'partial');
+    assert.ok(!methods.some(x=>x.startsWith('POST')),JSON.stringify(methods));
+  });
 });
 
 test('real HTTP navigation, confirmed defect, clean width, URL redaction', async () => {

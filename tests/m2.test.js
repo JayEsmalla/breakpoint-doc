@@ -24,7 +24,7 @@ test('occlusion flags covered controls but not unobstructed controls',async () =
   assert.ok(!scan.viewports[0].issues.some(i=>i.selector==='#free' && i.type==='occluded-control'));
 });
 
-test('confirmed layout issue includes a highlighted evidence crop when screenshots are enabled',async () => {
+test('confirmed layout issue includes an unmodified evidence crop when screenshots are enabled',async () => {
   const out = await temp();
   const result = await scanSite({
     url:'http://fixture.invalid/evidence',

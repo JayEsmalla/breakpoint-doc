@@ -36,6 +36,7 @@ const HELP = [
   '  --timeout 15000                        Navigation timeout (ms)',
   '  --max-duration 180000                 Total scan budget including discovery (ms)',
   '  --no-screenshots                       Avoid image artifacts',
+  '  --allow-incomplete                     Opt out of strict partial-scan CI failure',
   '  --strict-coverage                      Exit 3 when scan is partial',
   '  --disable-rules RULE,RULE              Suppress listed rule types',
   '  --severity RULE=LEVEL,RULE=LEVEL      high, medium, info, or off',
@@ -96,7 +97,7 @@ export function parseArgs(argv) {
       throw new Error('Only HTTP(S) URLs without embedded credentials are supported.');
     }
   }
-  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: false, disabledRules: [], severityOverrides: {}, responsive: false, routes: [], discover: false, explore: false, maxPages: 5, maxDepth: 1, maxStates: 20, maxDurationMs: 180000, profile: null, open: false };
+  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: command === 'scan', disabledRules: [], severityOverrides: {}, responsive: false, routes: [], discover: false, explore: false, maxPages: 5, maxDepth: 1, maxStates: 20, maxDurationMs: 180000, profile: null, open: false };
   const supplied = new Set();
   for (let i = urlText ? 2 : 1; i < argv.length; i++) {
     const flag = argv[i];
@@ -104,6 +105,7 @@ export function parseArgs(argv) {
     if (flag === '--open') { args.open = true; continue; }
     if (flag === '--no-screenshots') { args.screenshots = false; continue; }
     if (flag === '--strict-coverage') { args.strictCoverage = true; continue; }
+    if (flag === '--allow-incomplete') { args.strictCoverage = false; continue; }
     if (flag === '--responsive') { args.responsive = true; continue; }
     if (flag === '--discover') { args.discover = true; continue; }
     if (flag === '--explore') { args.explore = true; continue; }
@@ -154,13 +156,13 @@ export function parseArgs(argv) {
   if (args.profile === 'quick') {
     if (!supplied.has('--widths')) args.widths = [320,390,768,1440];
     if (!supplied.has('--no-screenshots')) args.screenshots = false;
-    if (!supplied.has('--strict-coverage')) args.strictCoverage = true;
+    if (!supplied.has('--strict-coverage') && !supplied.has('--allow-incomplete')) args.strictCoverage = true;
   } else if (args.profile === 'deep') {
     if (!supplied.has('--responsive')) args.responsive = true;
-    if (!supplied.has('--strict-coverage')) args.strictCoverage = true;
+    if (!supplied.has('--strict-coverage') && !supplied.has('--allow-incomplete')) args.strictCoverage = true;
   }
   if (command === 'doctor' && (args.profile || args.open)) throw new Error('Profile/open options apply only to scan.');
-  if (command === 'doctor' && (args.strictCoverage || args.responsive || args.disabledRules.length || Object.keys(args.severityOverrides).length)) throw new Error('Those options apply only to scan.');
+  if (command === 'doctor' && (supplied.has('--allow-incomplete') || args.strictCoverage || args.responsive || args.disabledRules.length || Object.keys(args.severityOverrides).length)) throw new Error('Those options apply only to scan.');
   if (args.discover && !args.routes.length) throw new Error('--discover requires --routes with approved paths.');
   if (command === 'doctor' && (args.routes.length || args.discover || args.explore || args.maxPages !== 5 || args.maxDepth !== 1 || args.maxStates !== 20 || args.maxDurationMs !== 180000)) throw new Error('Exploration options apply only to scan.');
   validateRules(args.disabledRules, args.severityOverrides);
@@ -203,6 +205,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         if (event.phase === 'viewport') console.log('['+event.status+'] '+event.route+' @ '+event.width+'px · '+event.issues+' observations');
       }});
       console.log('Scan: ' + result.status + ' · ' + (result.findings?.length ?? 0) + ' grouped findings');
+      if (result.safety?.blockedMutations) console.warn('Non-invasive protection: blocked ' + result.safety.blockedMutations + ' write requests; content may be incomplete.');
+      if (result.status === 'partial') console.warn('Some checks or page requests were incomplete; review coverage in the report.');
       console.log('Report: ' + result.reportPath);
       if (args.open) openLocalReport(result.reportPath);
       const blocking = result.findings?.some(f => f.confidence === 'confirmed' && ['high','medium'].includes(f.severity));

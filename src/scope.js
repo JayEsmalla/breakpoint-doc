@@ -1,4 +1,5 @@
 import { publicUrl, scrub } from './doctor.js';
+import { installReadOnlyGuards } from './safety.js';
 
 // No inferred navigation. Every visited page must be an explicitly approved path.
 const RISKY = /(?:^|[/-])(logout|signout|delete|remove|destroy|checkout|purchase|pay|payment|unsubscribe|reset|confirm|order|submit|publish|invite|transfer|upload|admin)(?:$|[/-])/i;
@@ -36,19 +37,13 @@ export async function discoverApproved(browser, target, plan, { maxDepth = 1, ti
   const queue = [{path: new URL(target).pathname, depth:0}];
   const seen = new Set();
   try {
-    // Only pre-approved paths can ever be page navigations. Passive assets remain normal.
-    await ctx.route('**/*', route => {
-      const request = route.request();
-      // Frame ownership may not yet exist when an initial navigation is intercepted.
-      // Restrict every document navigation, including frames, to approved paths.
-      if (request.isNavigationRequest()) {
-        try {
-          const url = new URL(request.url());
-          if (url.origin !== plan.origin || !plan.allowed.has(url.pathname) || url.search) return route.abort();
-        } catch { return route.abort(); }
-      }
-      return route.continue();
-    });
+    // Read-only methods + approved navigations for discovery as well as scans.
+    const guard = await installReadOnlyGuards(ctx, { allowNavigation: raw => {
+      try {
+        const url = new URL(raw);
+        return url.origin === plan.origin && plan.allowed.has(url.pathname) && !url.search;
+      } catch { return false; }
+    } });
     const page = await ctx.newPage();
     while (queue.length && reached.length < plan.maxPages) {
       const item = queue.shift();
@@ -77,7 +72,7 @@ export async function discoverApproved(browser, target, plan, { maxDepth = 1, ti
     for (const p of plan.requested) if (!reachedSet.has(p) && !skipped.some(x => x.path === p)) {
       skipped.push({path:p,reason: seen.has(p) ? 'Route failed' : 'Not linked within discovery depth or page budget'});
     }
-    return {routes:reached.map(x=>x.path),skipped, discovered: reached.map(x=>({path:x.path,depth:x.depth}))};
+    return {routes:reached.map(x=>x.path),skipped, discovered: reached.map(x=>({path:x.path,depth:x.depth})),safety:guard.counts};
   } finally { await ctx.close(); }
 }
 export function routeUrl(base, route) {

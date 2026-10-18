@@ -1,0 +1,111 @@
+/** DOM-side checks. Executed by Playwright's page.evaluate; keep this function self-contained. */
+export function collectDiagnostics() {
+  const viewWidth = document.documentElement.clientWidth;
+  const documentWidth = document.documentElement.scrollWidth;
+  const issues = [];
+  const candidateElements = Array.from(document.querySelectorAll('body *')).slice(0, 9000);
+  const interactive = 'a[href],button,input:not([type="hidden"]),select,textarea,[role="button"],[role="link"]';
+
+  function getSelector(element) {
+    if (element.id && CSS.escape) return `#${CSS.escape(element.id)}`;
+    const parts = [];
+    let current = element;
+    while (current && current !== document.body && parts.length < 5) {
+      let item = current.localName;
+      if (!item) break;
+      const classes = Array.from(current.classList).filter(c => /^[\w-]+$/.test(c)).slice(0, 2);
+      if (classes.length) item += '.' + classes.join('.');
+      const sameTag = current.parentElement ? Array.from(current.parentElement.children).filter(e => e.localName === current.localName) : [];
+      if (sameTag.length > 1) item += `:nth-of-type(${sameTag.indexOf(current) + 1})`;
+      parts.unshift(item);
+      current = current.parentElement;
+    }
+    return `body > ${parts.join(' > ')}`;
+  }
+
+  function visible(element, rect, style) {
+    if (rect.width < 1 || rect.height < 1 || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+    if (element.closest('[aria-hidden="true"],[inert],[hidden]')) return false;
+    return true;
+  }
+
+  function clippedOrScrollable(element, rect) {
+    let current = element.parentElement;
+    while (current && current !== document.documentElement) {
+      const css = getComputedStyle(current);
+      const overflow = css.overflowX;
+      if (['auto','scroll','hidden','clip'].includes(overflow)) {
+        const ancestor = current.getBoundingClientRect();
+        const extendsOutside = rect.left < ancestor.left - 2 || rect.right > ancestor.right + 2;
+        if (extendsOutside) return overflow === 'auto' || overflow === 'scroll' ? 'scrollable' : 'clipped';
+      }
+      current = current.parentElement;
+    }
+    return '';
+  }
+
+  const overflowPixels = Math.max(0, Math.round(documentWidth - viewWidth));
+  if (overflowPixels > 1) {
+    const offenders = [];
+    for (const element of candidateElements) {
+      const style = getComputedStyle(element);
+      const r = element.getBoundingClientRect();
+      if (!visible(element, r, style) || style.position === 'fixed') continue;
+      const spill = Math.round(r.right - viewWidth);
+      if (spill <= 1 || r.left >= documentWidth || clippedOrScrollable(element, r)) continue;
+      offenders.push({ element, spill, rect: r });
+    }
+    // Identify the deepest meaningful candidates rather than reporting every ancestor.
+    offenders.sort((a, b) => b.spill - a.spill || a.rect.width - b.rect.width);
+    const picked = offenders.filter((item, i) => !offenders.slice(0, i).some(other => other.element.contains(item.element) && Math.abs(other.spill - item.spill) <= 2)).slice(0, 3);
+    if (!picked.length) {
+      issues.push({ type: 'page-overflow', severity: 'high', selector: 'html', message: `Document extends ${overflowPixels}px beyond viewport`, suggestion: 'Check wide children, fixed widths and min-width in the page layout.', measurement: overflowPixels });
+    }
+    for (const item of picked) {
+      const style = getComputedStyle(item.element);
+      issues.push({
+        type: 'page-overflow', severity: 'high', selector: getSelector(item.element),
+        message: `Element extends ${item.spill}px past right viewport edge (page overflows ${overflowPixels}px)`,
+        suggestion: style.whiteSpace === 'nowrap' ? 'Review white-space: nowrap, add wrapping or constrain the container.' : style.minWidth !== 'auto' && style.minWidth !== '0px' ? 'Review min-width and fixed dimensions at narrow widths.' : 'Review fixed widths, flex/grid minimum sizing and available wrapping.',
+        measurement: item.spill,
+        computed: { display: style.display, width: style.width, minWidth: style.minWidth, overflowX: style.overflowX, whiteSpace: style.whiteSpace }
+      });
+    }
+  }
+
+  // Inspect only images the browser has already attempted to load.
+  // Do not treat deferred/lazy images as broken before loading is attempted.
+  for (const element of candidateElements) {
+    if (element.localName !== 'img' || !element.complete || element.naturalWidth !== 0 || !(element.currentSrc || element.getAttribute('src'))) continue;
+    const rect = element.getBoundingClientRect();
+    if (!visible(element, rect, getComputedStyle(element))) continue;
+    issues.push({
+      type: 'broken-image', severity: 'medium', selector: getSelector(element),
+      message: 'Visible image failed to load',
+      suggestion: 'Check the image URL, server response, asset path and supported image format.'
+    });
+    if (issues.length >= 40) break;
+  }
+
+  // Interactive controls must be visible and reasonably reachable.
+  let processed = 0;
+  for (const element of candidateElements) {
+    if (!element.matches(interactive) || processed++ > 600) continue;
+    const style = getComputedStyle(element);
+    const r = element.getBoundingClientRect();
+    if (!visible(element, r, style) || element.hasAttribute('disabled')) continue;
+    if (style.display === 'inline' || (element.localName === 'a' && r.height <= 28 && r.width <= 120)) continue; // WCAG target exceptions require contextual evaluation.
+    const parentOverflow = clippedOrScrollable(element, r);
+    if (parentOverflow === 'scrollable') continue;
+    const selector = getSelector(element);
+    const protrudesRight = r.right > viewWidth + 2 && r.left < viewWidth;
+    const protrudesLeft = r.left < -2 && r.right > 0;
+    if (protrudesRight || protrudesLeft || parentOverflow === 'clipped') {
+      issues.push({ type: 'clipped-control', severity: 'medium', selector, message: parentOverflow === 'clipped' ? 'Interactive control may be clipped by an overflow container' : 'Interactive control extends beyond the viewport edge', suggestion: 'Inspect ancestor overflow, fixed widths and responsive positioning.' });
+    }
+    if (r.width > 0 && r.height > 0 && (r.width < 24 || r.height < 24) && r.right > 0 && r.left < viewWidth && r.bottom > 0) {
+      issues.push({ type: 'small-target', severity: 'info', selector, message: `Control measures ${Math.round(r.width)} × ${Math.round(r.height)}px`, suggestion: 'Review touch target size and spacing; WCAG exceptions may apply.' });
+    }
+  }
+  return { overflowPixels, issues: issues.slice(0, 40), visitedElements: candidateElements.length, truncated: issues.length > 40 };
+}

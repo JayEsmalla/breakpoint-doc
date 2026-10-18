@@ -1,0 +1,23 @@
+{
+  "name": "breakpoint-doctor",
+  "version": "0.2.0",
+  "description": "Actionable responsive layout diagnostics for developers",
+  "type": "module",
+  "bin": {
+    "breakpoint-doctor": "./bin/breakpoint-doctor.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "scan:demo": "node ./bin/breakpoint-doctor.js scan http://127.0.0.1:4173",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check bin/breakpoint-doctor.js && node --check src/scanner.js && node --check src/detectors.js && node --check src/report.js"
+  },
+  "dependencies": {
+    "playwright": "^1.64.1"
+  },
+  "files": ["bin", "src", "README.md", "LICENSE"],
+  "keywords": ["responsive", "css", "overflow", "playwright", "cli", "testing", "layout", "viewport"],
+  "license": "MIT"
+}

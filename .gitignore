@@ -1,0 +1,5 @@
+node_modules/
+breakpoint-report/
+coverage/
+.env
+.DS_Store

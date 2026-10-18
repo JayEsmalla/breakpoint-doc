@@ -3,7 +3,8 @@ export function collectDiagnostics() {
   const viewWidth = document.documentElement.clientWidth;
   const documentWidth = document.documentElement.scrollWidth;
   const issues = [];
-  const candidateElements = Array.from(document.querySelectorAll('body *')).slice(0, 9000);
+  const allElements = document.querySelectorAll('body *');
+  const candidateElements = Array.from(allElements).slice(0, 9000);
   const interactive = 'a[href],button,input:not([type="hidden"]),select,textarea,[role="button"],[role="link"]';
 
   function getSelector(element) {
@@ -135,5 +136,5 @@ export function collectDiagnostics() {
       issues.push({ type: 'small-target', severity: 'info', selector, message: `Control measures ${Math.round(r.width)} × ${Math.round(r.height)}px`, suggestion: 'Review touch target size and spacing; WCAG exceptions may apply.' });
     }
   }
-  return { overflowPixels, issues: issues.slice(0, 40), visitedElements: candidateElements.length, truncated: issues.length > 40 };
+  return { overflowPixels, issues: issues.slice(0, 40), visitedElements: candidateElements.length, truncated: issues.length > 40 || allElements.length > 9000 };
 }

@@ -7,6 +7,7 @@ import { renderHtmlReport } from './report.js';
 import { decorateIssues, groupFindings } from './findings.js';
 import { publicUrl, scrub } from './doctor.js';
 import { discoverWidths } from './widths.js';
+import { RULES, validateRules } from './rules.js';
 
 export const DEFAULT_WIDTHS = [320, 375, 390, 768, 1024, 1440];
 const MAX_EVENTS = 20;
@@ -74,8 +75,9 @@ async function snapshot(context, target, timeout, htmlContent) {
 }
 
 export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoint-report', timeout = 15000,
-  screenshots = true, htmlContent, disabledRules = [], responsive = false, strictCoverage = false } = {}) {
+  screenshots = true, htmlContent, disabledRules = [], severityOverrides = {}, responsive = false, strictCoverage = false } = {}) {
   const target = parseTarget(url);
+  validateRules(disabledRules, severityOverrides);
   if (!Array.isArray(widths) || widths.length < 1 || widths.length > 30 || widths.some(w => !Number.isInteger(w) || w < 240 || w > 3840)) throw new Error('Invalid viewport widths.');
   const output = path.resolve(out);
   await mkdir(output, { recursive: true });
@@ -94,15 +96,15 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
     try {
       first = await snapshot(context, target, timeout, htmlContent);
       const { diagnostics } = first;
-      diagnostics.issues = decorateIssues(diagnostics.issues, target.href, disabledRules);
+      diagnostics.issues = decorateIssues(diagnostics.issues, target.href, disabledRules, severityOverrides);
       const confirmable = diagnostics.issues.filter(issue => issue.severity !== 'info');
       if (confirmable.length) {
         try {
           const second = await snapshot(context, target, timeout, htmlContent);
           try {
-            const repeated = new Set(decorateIssues(second.diagnostics.issues, target.href, disabledRules).map(issue => issue.id));
+            const repeated = new Set(decorateIssues(second.diagnostics.issues, target.href, disabledRules, severityOverrides).map(issue => issue.id));
             for (const issue of diagnostics.issues) {
-              if (issue.severity !== 'info' && repeated.has(issue.id) && !['occluded-control','http-error','failed-request'].includes(issue.type)) issue.confidence = 'confirmed';
+              if (issue.severity !== 'info' && repeated.has(issue.id) && RULES[issue.type]?.autoConfirm) issue.confidence = 'confirmed';
             }
           } finally { await second.page.close(); }
         } catch (error) { warnings.push(width + 'px: recheck failed: ' + scrub(error.message)); }

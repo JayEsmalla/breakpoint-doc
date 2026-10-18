@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { scanSite, DEFAULT_WIDTHS } from '../src/scanner.js';
 import { checkSetup } from '../src/doctor.js';
+import { validateRules } from '../src/rules.js';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -18,6 +19,7 @@ const HELP = [
   '  --no-screenshots                       Avoid image artifacts',
   '  --strict-coverage                      Exit 3 when scan is partial',
   '  --disable-rules RULE,RULE              Suppress listed rule types',
+  '  --severity RULE=LEVEL,RULE=LEVEL      high, medium, info, or off',
   '  --responsive                           Adaptive width discovery (M2)',
   '  --help                                 Show this help',
   '',
@@ -40,13 +42,13 @@ export function parseArgs(argv) {
       throw new Error('Only HTTP(S) URLs without embedded credentials are supported.');
     }
   }
-  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: false, disabledRules: [], responsive: false };
+  const args = { command, ...(url ? { url: url.href } : {}), widths: DEFAULT_WIDTHS, out: './breakpoint-report', timeout: 15000, screenshots: true, strictCoverage: false, disabledRules: [], severityOverrides: {}, responsive: false };
   for (let i = urlText ? 2 : 1; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === '--no-screenshots') { args.screenshots = false; continue; }
     if (flag === '--strict-coverage') { args.strictCoverage = true; continue; }
     if (flag === '--responsive') { args.responsive = true; continue; }
-    if (!['--widths', '--out', '--timeout', '--disable-rules'].includes(flag)) throw new Error('Unknown option: ' + flag);
+    if (!['--widths', '--out', '--timeout', '--disable-rules', '--severity'].includes(flag)) throw new Error('Unknown option: ' + flag);
     const value = argv[++i];
     if (!value || value.startsWith('--')) throw new Error('Missing value for ' + flag);
     if (flag === '--widths') {
@@ -60,13 +62,21 @@ export function parseArgs(argv) {
       if (!Number.isInteger(ms) || ms < 1000 || ms > 120000) throw new Error('--timeout must be 1000–120000 ms.');
       args.timeout = ms;
     }
+    if (flag === '--severity') {
+      for (const pair of value.split(',')) {
+        const [rule, severity, extra] = pair.split('=');
+        if (!rule || !severity || extra !== undefined) throw new Error('Expected --severity rule=high|medium|info|off.');
+        args.severityOverrides[rule] = severity;
+      }
+    }
     if (flag === '--disable-rules') {
       const ruleNames = value.split(',');
       if (ruleNames.some(rule => !/^[a-z][a-z0-9-]*$/.test(rule))) throw new Error('Rule names must contain lowercase letters and dashes.');
       args.disabledRules = [...new Set(ruleNames)];
     }
   }
-  if (command === 'doctor' && (args.strictCoverage || args.responsive || args.disabledRules.length)) throw new Error('Those options apply only to scan.');
+  if (command === 'doctor' && (args.strictCoverage || args.responsive || args.disabledRules.length || Object.keys(args.severityOverrides).length)) throw new Error('Those options apply only to scan.');
+  validateRules(args.disabledRules, args.severityOverrides);
   return args;
 }
 

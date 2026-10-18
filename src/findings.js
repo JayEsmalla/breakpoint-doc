@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { publicUrl, scrub } from './doctor.js';
+import { RULES } from './rules.js';
 
 export function issueIdentity(issue, targetUrl) {
   const location = new URL(targetUrl);
@@ -8,10 +9,12 @@ export function issueIdentity(issue, targetUrl) {
   return createHash('sha256').update(key).digest('hex').slice(0, 16);
 }
 
-export function decorateIssues(issues, targetUrl, disabledRules = []) {
-  return issues.filter(item => !disabledRules.includes(item.type)).map(item => ({
+export function decorateIssues(issues, targetUrl, disabledRules = [], severityOverrides = {}) {
+  return issues.filter(item => !disabledRules.includes(item.type) && severityOverrides[item.type] !== 'off').map(item => ({
     ...item,
     ruleId: item.type,
+    category: RULES[item.type]?.category || 'unknown',
+    severity: severityOverrides[item.type] || item.severity,
     id: issueIdentity(item, targetUrl),
     message: scrub(item.message),
     suggestion: scrub(item.suggestion),

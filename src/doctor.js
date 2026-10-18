@@ -59,7 +59,9 @@ export async function checkSetup({ out = './breakpoint-report', targetUrl, brows
       if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password) throw new Error('Invalid HTTP(S) URL.');
       // HEAD is a connectivity probe, not a guarantee the SPA will render correctly.
       const response = await fetch(target, { method: 'HEAD', signal: AbortSignal.timeout(5000), redirect: 'manual' });
-      record('Target responds to HEAD', response.status < 500, response.status >= 500 ? 'Target returned HTTP ' + response.status + '. Start your dev server or check the URL.' : '');
+      record('Target responds to HEAD', response.status < 400 || response.status === 405 || response.status === 501,
+        response.status >= 400 && ![405,501].includes(response.status)
+          ? 'Target returned HTTP ' + response.status + '. Check that the page exists and the server is ready.' : '');
     } catch (error) {
       record('Target reachable', false, 'Start the local server and check its URL. ' + scrub(error.message));
     }

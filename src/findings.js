@@ -4,7 +4,10 @@ import { RULES } from './rules.js';
 
 export function issueIdentity(issue, targetUrl) {
   const location = new URL(targetUrl);
-  const resource = ['http-error','failed-request'].includes(issue.type) ? issue.message.replace(/HTTP \d+ for /, '') : '';
+  // Keep separate runtime exceptions separate. Otherwise an unrelated exception
+  // on reload would incorrectly confirm the first one.
+  const resource = ['http-error','failed-request','javascript-error'].includes(issue.type)
+    ? scrub(issue.message).replace(/\b\d{4,}\b/g, '#') : '';
   const key = [location.origin, location.pathname, issue.type, issue.selector || 'document', resource].join('|');
   return createHash('sha256').update(key).digest('hex').slice(0, 16);
 }

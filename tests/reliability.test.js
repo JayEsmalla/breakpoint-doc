@@ -44,6 +44,29 @@ test('real HTTP navigation, confirmed defect, clean width, URL redaction', async
   });
 });
 
+
+
+test('two different exceptions do not confirm each other', async () => {
+  let loads = 0;
+  await withServer((req, res) => {
+    loads++;
+    res.setHeader('Content-Type', 'text/html');
+    res.end('<!doctype html><script>throw new Error("' + (loads % 2 ? 'alpha' : 'beta') + '")</script>');
+  }, async base => {
+    const report = await scanSite({ url: base, widths:[390], out:await output(), screenshots:false });
+    const exception = report.findings.find(f => f.ruleId === 'javascript-error');
+    assert.ok(exception);
+    assert.equal(exception.confidence, 'suspected');
+  });
+});
+
+test('doctor does not report an HTTP 404 page as reachable', async () => {
+  await withServer((req, res) => { res.writeHead(404); res.end(); }, async base => {
+    const result = await checkSetup({ out: await output(), targetUrl: base });
+    assert.ok(result.checks.some(c => c.name === 'Target responds to HEAD' && !c.ok));
+  });
+});
+
 test('navigation errors are not reported as clean or as layout defects', async () => {
   await withServer((req,res) => {res.writeHead(404);res.end('not found');},async base => {
     const result = await scanSite({url:base+'/missing',widths:[320],out:await output(),screenshots:false});

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "description": "Illustrative synthetic cases only; not real-world performance evidence.",
+  "cases": [
+    {
+      "id": "demo-overflow",
+      "ruleId": "page-overflow",
+      "expected": true,
+      "detected": true,
+      "source": "synthetic"
+    },
+    {
+      "id": "demo-responsive-clean",
+      "ruleId": "page-overflow",
+      "expected": false,
+      "detected": false,
+      "source": "synthetic"
+    },
+    {
+      "id": "demo-missed",
+      "ruleId": "clipped-control",
+      "expected": true,
+      "detected": false,
+      "source": "synthetic"
+    },
+    {
+      "id": "demo-false-positive",
+      "ruleId": "occluded-control",
+      "expected": false,
+      "detected": true,
+      "source": "synthetic"
+    }
+  ]
+}

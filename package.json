@@ -1,6 +1,6 @@
 {
   "name": "breakpoint-doctor",
-  "version": "0.5.0-alpha.1",
+  "version": "0.6.0-alpha.1",
   "description": "Actionable responsive layout diagnostics for developers",
   "type": "module",
   "bin": {
@@ -12,6 +12,8 @@
   "scripts": {
     "scan:demo": "node ./bin/breakpoint-doctor.js scan http://127.0.0.1:4173",
     "test": "node --test tests/*.test.js",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "verify": "npm run check && npm test && npm pack --dry-run",
     "check": "node --check bin/breakpoint-doctor.js && node --check src/scanner.js && node --check src/detectors.js && node --check src/report.js && node --check src/doctor.js && node --check src/findings.js && node --check src/widths.js && node --check src/rules.js && node --check src/scope.js && node --check src/states.js && node --check src/baseline.js"
   },
   "dependencies": {

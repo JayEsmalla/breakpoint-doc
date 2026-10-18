@@ -64,7 +64,7 @@ Solo frontend developers, small teams, maintainers of open-source websites, QA e
 
 ## Current and proposed commands
 
-Current alpha: `breakpoint-doctor doctor`, `breakpoint-doctor scan <URL>`, `--responsive`, `--routes`, `--discover`, and `--explore`. The `audit` and `compare` commands below are future proposals.
+Current alpha: `breakpoint-doctor doctor`, `breakpoint-doctor scan <URL>`, `--responsive`, `--routes`, `--discover`, and `--explore`. The `audit` command below is a future proposal; `compare` is implemented in M4 as `compare <baseline.json> <report.json>`.
 
 ```sh
 breakpoint-doctor audit http://localhost:5173 --profile quick

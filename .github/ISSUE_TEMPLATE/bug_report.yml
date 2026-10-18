@@ -1,0 +1,42 @@
+name: Bug or false positive
+description: Report a reproducible defect or noisy detection without exposing private site data.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Please use a minimized local HTML reproduction. Never paste tokens, private URLs, cookies, credentials or unredacted screenshots."
+  - type: input
+    id: version
+    attributes:
+      label: Version / Git commit
+      placeholder: "0.6.0-alpha.1"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS / Node / Playwright
+      placeholder: "Windows 11, Node 24, Chromium"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction and CLI flags
+      description: Use local fixture HTML; redact all secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: coverage
+    attributes:
+      label: Scan result
+      options: ["clean", "issues", "partial", "error", "not applicable"]
+    validations:
+      required: true

@@ -39,15 +39,25 @@ Legend: [x] implemented and tested locally; [ ] outstanding. Implementation chec
 
 See [M3 validation evidence](VALIDATION_M3.md). M3 supports approved routes and narrow safe-looking interaction patterns—not arbitrary crawling, irreversible workflows or automatic fixes.
 
-## M4 — Regression-first CI
-- [ ] Baseline comparisons and new/persistent/resolved/flaky issue classification.
-- [ ] PR report artifacts and selective CI gates for newly introduced verified issues.
-- [ ] Optional SARIF only with accurate locations.
+## M4 — Approved baseline regression and pull-request reporting (engineering complete; external validation pending)
+- [x] Explicit `baseline approve` command, stable report identity, scope/rule compatibility checks and versioned baseline schema.
+- [x] `compare` CLI: new/existing/resolved/changed-confidence; optional repeat-scan inconsistent findings; selective new-confirmed-high/medium exit gates.
+- [x] HTML/JSON/Markdown evidence with `GITHUB_STEP_SUMMARY` support, honest partial-coverage classification and CLI exit codes.
+- [x] Read-only `pull_request`/main demonstration workflow with approved local fixture, bounded artifacts and no PR comments or secrets.
+- [x] Automated CLI and live HTTP regression comparisons, including changed configuration and intermittent observations.
+- [ ] External PR adoption trials, broader benchmark and schema/fingerprint stability study.
 
-## M5 — Public release and adoption
-- [ ] External onboarding trials, reviewed real sites and cross-platform compatibility matrix.
-- [ ] npm publication validation, versioned releases, license/security/privacy review.
-- [ ] Community contribution workflow and issue templates.
+See [M4 validation evidence](VALIDATION_M4.md).
+
+## M5 — Release engineering and adoption (engineering artifacts complete; GA gates open)
+- [x] Linux Node 22/24, Windows Node 24, macOS Node 24 CI checks configured with Chromium and packaging.
+- [x] Local package dry run, npm registry-name lookup, npm production dependency audit, security guidance and contribution templates.
+- [x] Changelog and a candid release/readiness gate ledger.
+- [ ] Verify successful final matrix on all three platforms for release candidate.
+- [ ] Independent user onboarding trials and 12+ reviewed real staging sites.
+- [ ] Security/privacy audit, npm ownership verification and maintainer-approved publication/release.
+
+See [M5 release readiness](M5_RELEASE_READINESS.md). The alpha developer preview is **not published to npm and is not a v1/general-availability release**.
 
 ## Explicit non-goals in M1/M2
 No automatic code mutation, AI dependence, cloud uploads, broad web crawling, unsafe interactions, universal website score or WCAG certification.

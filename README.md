@@ -4,7 +4,7 @@
 
 A JavaScript CLI that loads a website in Chromium across viewport widths, identifies likely responsive problems plus basic browser runtime/resource failures, and generates an evidence-backed HTML + JSON report. The future vision is **autonomous frontend QA**: safe route/UI-state exploration, width-boundary diagnosis, and regression reporting.
 
-> **Status:** M1–M3 v0.5.0-alpha.1 developer preview. Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
+> **Status:** M1–M4 implemented in v0.6.0-alpha.1; M5 release-engineering checks underway. Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
 
 ## Quick start
 
@@ -43,6 +43,21 @@ node bin/breakpoint-doctor.js scan http://localhost:5173 --routes /,/shop --expl
 
 M3 runs passive checks on every selected route. It checks UI states at the smallest/largest specified widths, with up to six semantic controls per eligible viewport and a bounded global action budget. Generic links and form submissions are never auto-clicked. During an interaction, requests/WebSockets are blocked, but **this is not a full browser sandbox**: custom JavaScript or even HTTP GET routes may have side effects. Use only disposable development/staging data on sites you are authorized to test. Reports disclose skipped pages/actions and reproduction selectors.
 
+### M4: Approved regression baselines and pull-request checks
+
+```bash
+# Review a complete scan, then explicitly approve its findings and coverage.
+node bin/breakpoint-doctor.js baseline approve breakpoint-report/report.json --out .breakpoint-baseline.json
+
+# Run the same approved paths/widths/rules after changing your frontend.
+node bin/breakpoint-doctor.js compare .breakpoint-baseline.json breakpoint-report/report.json --out breakpoint-report/comparison.json
+
+# Optional independent second scan to flag inconsistent findings.
+node bin/breakpoint-doctor.js compare .breakpoint-baseline.json breakpoint-report/report.json --recheck second-report.json
+```
+
+Comparison defaults to failing **only new, confirmed, high-severity findings** (exit 1). Incompatible targets/rules or incomplete coverage produce exit 3 by default. It does not automatically suppress unexplored states or claim a defect is fixed when coverage changed. The example [read-only PR workflow](.github/workflows/regression.yml) demonstrates a local fixture and uploads a short-lived report artifact; adapt it to your own development server and **approve a separate baseline** for your project. Never run privileged `pull_request_target` workflows against untrusted PR code.
+
 ### Options
 
 | Flag | Description |
@@ -61,6 +76,9 @@ M3 runs passive checks on every selected route. It checks UI states at the small
 | `--max-depth 1` | Approved-link depth (0–3) |
 | `--explore` | Opt-in semantic menus, tabs, accordions and dialogs |
 | `--max-states 20` | Max UI actions across pages (1–40) |
+| `--fail-on new-confirmed-high` | Comparison fail policy (`new-confirmed-high`, `new-confirmed-medium`, `none`) |
+| `--recheck second-report.json` | Optional second scan for inconsistent findings |
+| `--allow-partial` | Opt out of incomplete-coverage gating (not recommended in release CI) |
 
 Use `BREAKPOINT_DOCTOR_CHROMIUM=/path/to/chromium` to point at an already-installed Chromium executable if needed.
 
@@ -89,12 +107,12 @@ The suite includes 32 labeled positive/negative fixture scenarios, real Chromium
 
 ## Open source
 
-MIT license. Contributions welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Public availability, npm package naming and licensing of dependencies should be verified before the first release.
+MIT license. Contributions welcome; see [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and [CHANGELOG.md](CHANGELOG.md). Public availability, npm package naming and licensing of dependencies should be verified before the first release.
 
 
 ## Product direction: useful first, ambitious later
 
-The first priority is a **trustworthy low-friction scan**: explicit scan status, low-noise findings, reproducible evidence and safe local reporting. Adaptive breakpoint sampling and opted-in, strictly bounded route/UI-state exploration are implemented as alpha features. Regression-aware CI remains planned for M4.
+The first priority is a **trustworthy low-friction scan**: explicit scan status, low-noise findings, reproducible evidence and safe local reporting. Adaptive breakpoint sampling and opted-in, strictly bounded route/UI-state exploration are implemented as alpha features. Regression-aware comparison and a read-only PR fixture are now available; broader release validation, user research and npm publication remain future gates.
 
 - [Refinement strategy and competitive positioning](docs/PRODUCT_STRATEGY.md)
 - [Developer onboarding and report UX specification](docs/DEVELOPER_EXPERIENCE.md)
@@ -105,4 +123,4 @@ The first priority is a **trustworthy low-friction scan**: explicit scan status,
 
 ## Roadmap
 
-See [M3 validation evidence](docs/VALIDATION_M3.md), [M1/M2 validation evidence](docs/VALIDATION_M1_M2.md) and [docs/ROADMAP.md](docs/ROADMAP.md) for implemented features, independently verified CI, and outstanding acceptance gates. [Product vision](docs/PRODUCT_VISION.md), [detection reliability](docs/DETECTION_RELIABILITY.md), and [architecture](docs/ARCHITECTURE_NEXT.md) distinguish the shipped core from implemented M3 route/UI-state exploration and planned M4 baseline-aware CI.
+See [M4 validation evidence](docs/VALIDATION_M4.md), [M5 release readiness](docs/M5_RELEASE_READINESS.md), [M3 validation evidence](docs/VALIDATION_M3.md), [M1/M2 validation evidence](docs/VALIDATION_M1_M2.md) and [docs/ROADMAP.md](docs/ROADMAP.md) for implemented features, independently verified CI, and outstanding acceptance gates. [Product vision](docs/PRODUCT_VISION.md), [detection reliability](docs/DETECTION_RELIABILITY.md), and [architecture](docs/ARCHITECTURE_NEXT.md) distinguish the shipped core from implemented M3 route/UI-state exploration and implemented M4 baseline-aware CI demonstration and pending external release validation.

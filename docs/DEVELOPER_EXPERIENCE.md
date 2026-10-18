@@ -1,6 +1,6 @@
 # Developer experience specification (proposed)
 
-Status: M1–M3 alpha has `doctor` and `scan`, including `--responsive`, `--routes`, `--discover` and `--explore`. The `init`, `audit`, `compare`, profile systems and full sensitive-data masking described below remain proposed only.
+Status: M1–M3 alpha has `doctor` and `scan`, including `--responsive`, `--routes`, `--discover` and `--explore`. The `init`, `audit`, profile systems and full sensitive-data masking described below remain proposed. M4 now includes `baseline approve` and `compare` commands.
 
 ## Four-minute onboarding target
 1. User installs or runs from npm (when published) and starts a trusted dev server.

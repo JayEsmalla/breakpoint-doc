@@ -3,7 +3,7 @@ import { scanSite, DEFAULT_WIDTHS } from '../src/scanner.js';
 import { checkSetup } from '../src/doctor.js';
 import { validateRules } from '../src/rules.js';
 import { approveBaseline, compareBaseline, comparisonMarkdown, comparisonExitCode, readJson, writeJson } from '../src/baseline.js';
-import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
@@ -35,6 +35,7 @@ const HELP = [
   '  --fail-on new-confirmed-high          compare policy: new-confirmed-high|new-confirmed-medium|none',
   '  --allow-partial                        Compare incomplete scans without claiming resolved issues',
   '  --recheck second-report.json            Repeated scan; mark inconsistent observations as flaky',
+  '  --version                              Show installed tool version',
   '  --help                                 Show this help',
   '',
   'Exit codes: 0 = no confirmed blocking issues, 1 = confirmed high/medium issues,',
@@ -44,6 +45,7 @@ const HELP = [
 ].join('\n');
 
 export function parseArgs(argv) {
+  if (argv.includes('--version') || argv.includes('-v')) return {version:true};
   if (!argv.length || argv.includes('--help') || argv.includes('-h')) return { help: true };
   if (argv[0] === 'baseline' || argv[0] === 'compare') {
     const command = argv[0];
@@ -134,6 +136,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const args = parseArgs(process.argv.slice(2));
     if (args.help) console.log(HELP);
+    else if (args.version) console.log(JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version);
     else if (args.command === 'baseline') {
       const scan = await readJson(args.report);
       const baseline = approveBaseline(scan);

@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an improvement and explain the developer problem it addresses.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Developer problem
+      description: What is inconvenient or unreliable without this?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed workflow and safe boundaries
+      description: Include setup friction, runtime budget and privacy considerations.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Existing alternatives or workarounds

@@ -1,6 +1,6 @@
 # Breakpoint Doctor — Autonomous Frontend QA (product direction)
 
-**Status:** aspirational roadmap, **not** currently implemented in full. The v0.4.0 alpha implements one-page scanning, setup diagnostics, sampled responsive width boundaries, grouped findings and limited two-pass confirmation. Multipage exploration and regression comparisons remain future work.
+**Status:** aspirational roadmap, **not** currently implemented in full. The v0.5.0 alpha adds approved multipage checks and opt-in bounded semantic interaction-state inspection to M1/M2 diagnostics. Open-ended crawling and regression comparisons remain future work.
 
 ## Product promise
 
@@ -19,7 +19,7 @@ Solo frontend developers, small teams, maintainers of open-source websites, QA e
 ## Core workflows
 
 1. **Quick local health check** — scan one supplied URL at high-value widths; report viewport/layout defects, visible image failure, uncaught JS errors and same-origin HTTP failures.
-2. **Discovery scan (future)** — within a developer-approved same-origin allowlist, crawl bounded routes and open safe menus/tabs/accordions/dialogs; inspect each UI state at representative widths.
+2. **Discovery scan (M3 alpha)** — visit explicitly approved paths and optionally follow links between them; inspect eligible semantic menus/tabs/accordions/dialogs with tight budgets and click-time network blocking.
 3. **Boundary investigation (alpha)** — bounded adaptive width sampling brackets observed failing width intervals; it does not exhaustively check every width or UI state.
 4. **Before/after regression check (future)** — compare stable issue fingerprints against a developer-approved baseline; report only new high-confidence issues as CI failures.
 5. **Explain and reproduce (future)** — generate selected screenshots, DOM/CSS evidence, possible causes, and a minimal reproducible route/state/width/action sequence. Proposed patches remain suggestions for human review.
@@ -64,7 +64,7 @@ Solo frontend developers, small teams, maintainers of open-source websites, QA e
 
 ## Current and proposed commands
 
-Current alpha: `breakpoint-doctor doctor`, `breakpoint-doctor scan <URL>` and `breakpoint-doctor scan <URL> --responsive`. The `audit` and `compare` commands below are future proposals.
+Current alpha: `breakpoint-doctor doctor`, `breakpoint-doctor scan <URL>`, `--responsive`, `--routes`, `--discover`, and `--explore`. The `audit` and `compare` commands below are future proposals.
 
 ```sh
 breakpoint-doctor audit http://localhost:5173 --profile quick

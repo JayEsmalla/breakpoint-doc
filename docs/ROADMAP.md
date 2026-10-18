@@ -29,10 +29,15 @@ Legend: [x] implemented and tested locally; [ ] outstanding. Implementation chec
 
 **M2 validation still open:** broader real-site accuracy study, cross-browser/zoom/shadow DOM coverage and formal comparisons against v0.2 for false positives and deduplication. Width intervals are estimates bounded by tested samples.
 
-## M3 — Safe multipage exploration
-- [ ] Developer-approved route allowlists, depth/time/page caps, visible coverage.
-- [ ] Opt-in non-mutating menus/tabs/accordions/dialogs, with action safety controls.
-- [ ] Route/state/width reproduction sequences.
+## M3 — Safe, bounded website exploration (implemented; external validation pending)
+- [x] Explicit same-origin main-frame route allowlist (`--routes`), `--max-pages`, optional `--discover` link traversal and `--max-depth`.
+- [x] Opt-in `--explore` semantic menu/tab/accordion/dialog controls with `--max-states` and per-width/per-route limits.
+- [x] State action network request blocking, WebSocket rejection, service-worker blocking, form/link exclusion and dangerous-label filtering (defense in depth, **not a safety guarantee**).
+- [x] Route → width → state → selector reproduction steps, grouped findings, explicit skipped-action/page coverage and partial scan status.
+- [x] Local HTTP and Chromium tests for unsafe links, budgets, prevention of attempted POSTs, dialogs, state handler errors and coverage.
+- [ ] Independent staging-site security assessment, broad cross-platform compatibility and real-world accuracy studies.
+
+See [M3 validation evidence](VALIDATION_M3.md). M3 supports approved routes and narrow safe-looking interaction patterns—not arbitrary crawling, irreversible workflows or automatic fixes.
 
 ## M4 — Regression-first CI
 - [ ] Baseline comparisons and new/persistent/resolved/flaky issue classification.

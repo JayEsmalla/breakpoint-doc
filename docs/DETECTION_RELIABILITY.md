@@ -1,6 +1,6 @@
 # Detection accuracy, evidence and safety contract (proposed)
 
-Status: specification mixing current M1/M2 alpha functionality and unimplemented future requirements. The authoritative implemented-vs-pending breakdown and checks are in [VALIDATION_M1_M2.md](VALIDATION_M1_M2.md).
+Status: specification mixing current M1–M3 alpha functionality and unimplemented future requirements. The authoritative implemented-vs-pending breakdown and checks are in [VALIDATION_M1_M2.md](VALIDATION_M1_M2.md).
 
 ## Result states and CLI contract
 - `clean`: all planned checks completed successfully and found no issue matching configured fail policy. Not "bug-free".

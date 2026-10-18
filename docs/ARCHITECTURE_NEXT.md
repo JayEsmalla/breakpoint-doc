@@ -1,6 +1,6 @@
 # Proposed architecture, next phases
 
-Current modules (M1/M2 developer preview): `bin/breakpoint-doctor.js` (CLI), `src/doctor.js` (preflight/redaction), `src/rules.js` (rules), `src/scanner.js` (Chromium orchestration/two-pass confirmation), `src/detectors.js` (DOM and hit testing), `src/findings.js` (stable IDs/grouping), `src/widths.js` (bounded adaptive width search) and `src/report.js` (HTML report). Route/state exploration, baselines and SARIF in the diagram below are still planned.
+Current modules (M1–M3 alpha developer preview): `bin/breakpoint-doctor.js` (CLI), `src/doctor.js` (preflight/redaction), `src/rules.js` (rules), `src/scanner.js` (Chromium orchestration/two-pass confirmation), `src/detectors.js` (DOM and hit testing), `src/findings.js` (stable IDs/grouping), `src/widths.js` (bounded adaptive width search) and `src/report.js` (HTML report). The current code also includes `src/scope.js` (approved route discovery) and `src/states.js` (opt-in bounded semantic UI interactions). Baseline comparisons, broad arbitrary state exploration and SARIF in the diagram remain planned.
 
 The following are **planned**, not deployed:
 

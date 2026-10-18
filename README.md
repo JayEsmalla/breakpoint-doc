@@ -4,7 +4,7 @@
 
 A JavaScript CLI that loads a website in Chromium across viewport widths, identifies likely responsive problems plus basic browser runtime/resource failures, and generates an evidence-backed HTML + JSON report. The future vision is **autonomous frontend QA**: safe route/UI-state exploration, width-boundary diagnosis, and regression reporting.
 
-> **Status:** M1/M2 developer preview. Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
+> **Status:** M1–M3 v0.5.0-alpha.1 developer preview. Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
 
 ## Quick start
 
@@ -28,6 +28,21 @@ breakpoint-doctor scan http://localhost:5173 --widths 320,390,768,1440
 
 After an npm release, the intended invocation is `npx breakpoint-doctor scan <URL>` (not yet available).
 
+### M3: Approved routes and opt-in UI exploration
+
+```bash
+# Only these paths will be visited; use your own local/staging server.
+node bin/breakpoint-doctor.js scan http://localhost:5173 --routes /,/shop,/about --max-pages 3
+
+# Follow links only between explicitly approved paths (bounded depth).
+node bin/breakpoint-doctor.js scan http://localhost:5173 --routes /,/shop,/about --discover --max-depth 1
+
+# Also inspect safe-looking menus, tabs, accordions and dialogs (opt-in).
+node bin/breakpoint-doctor.js scan http://localhost:5173 --routes /,/shop --explore --max-states 12 --no-screenshots
+```
+
+M3 runs passive checks on every selected route. It checks UI states at the smallest/largest specified widths, with up to six semantic controls per eligible viewport and a bounded global action budget. Generic links and form submissions are never auto-clicked. During an interaction, requests/WebSockets are blocked, but **this is not a full browser sandbox**: custom JavaScript or even HTTP GET routes may have side effects. Use only disposable development/staging data on sites you are authorized to test. Reports disclose skipped pages/actions and reproduction selectors.
+
 ### Options
 
 | Flag | Description |
@@ -40,6 +55,12 @@ After an npm release, the intended invocation is `npx breakpoint-doctor scan <UR
 | `--disable-rules small-target` | Suppress named rules; unknown rules cause a configuration error |
 | `--severity page-overflow=info` | Rule severity override: high, medium, info or off |
 | `--strict-coverage` | Exit 3 if scan is partial |
+| `--routes /,/shop,/about` | Explicit same-origin approved paths; no queries/fragments |
+| `--discover` | Traverse links **only** to approved paths (requires `--routes`) |
+| `--max-pages 5` | Max pages scanned (1–20) |
+| `--max-depth 1` | Approved-link depth (0–3) |
+| `--explore` | Opt-in semantic menus, tabs, accordions and dialogs |
+| `--max-states 20` | Max UI actions across pages (1–40) |
 
 Use `BREAKPOINT_DOCTOR_CHROMIUM=/path/to/chromium` to point at an already-installed Chromium executable if needed.
 
@@ -55,7 +76,7 @@ Use `BREAKPOINT_DOCTOR_CHROMIUM=/path/to/chromium` to point at an already-instal
 
 **Exit codes:** `0` no confirmed high/medium findings (not a bug-free guarantee); `1` confirmed high/medium finding; `2` fatal/setup error; `3` incomplete scan with `--strict-coverage`. Suspected issues are visible but do not fail CI by default. Partial without strict coverage can exit 0; inspect coverage in the report.
 
-**Limitations:** One provided page only. No route discovery, UI clicking, login automation, exact source-line attribution or complete carousel/shadow DOM coverage. Adaptive widths only bracket observed transitions, not all possible failures. To confirm a finding the scanner may load the supplied page a second time. Only scan authorized development/staging targets.
+**Limitations:** Route discovery and limited semantic state clicks are now available by explicit opt-in. No login automation, general-purpose clicking, form submission, exact source-line attribution or complete carousel/shadow DOM coverage. Adaptive widths only bracket observed transitions, not all possible failures. To confirm a finding the scanner may load the supplied page a second time. Only scan authorized development/staging targets.
 
 ## Test
 
@@ -64,7 +85,7 @@ npm test
 npm run check
 ```
 
-The suite includes 32 labeled positive/negative fixture scenarios, real Chromium tests for occlusion, an actual local HTTP server scan, evidence crops, and adaptive width transition checks. These prove coverage on test fixtures, not universal real-site accuracy. Chromium installation is required.
+The suite includes 32 labeled positive/negative fixture scenarios, real Chromium/local HTTP tests of occlusion, adaptive widths, approved routes, safe UI states and network-request blocking. These prove coverage on test fixtures, not universal real-site accuracy. Chromium installation is required.
 
 ## Open source
 
@@ -73,15 +94,15 @@ MIT license. Contributions welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Publ
 
 ## Product direction: useful first, ambitious later
 
-The first priority is a **trustworthy low-friction scan**: explicit scan status, low-noise findings, reproducible evidence and safe local reporting. Planned subsequent features include adaptive breakpoint range discovery, opted-in safe UI-state exploration, and regression-aware CI. These are *not* included in v0.2.
+The first priority is a **trustworthy low-friction scan**: explicit scan status, low-noise findings, reproducible evidence and safe local reporting. Adaptive breakpoint sampling and opted-in, strictly bounded route/UI-state exploration are implemented as alpha features. Regression-aware CI remains planned for M4.
 
 - [Refinement strategy and competitive positioning](docs/PRODUCT_STRATEGY.md)
 - [Developer onboarding and report UX specification](docs/DEVELOPER_EXPERIENCE.md)
 - [Detection reliability, privacy and safety contract](docs/DETECTION_RELIABILITY.md)
 - [Ordered development milestones and acceptance gates](docs/ROADMAP.md)
 
-**Safety:** Only scan sites you control or have permission to test. The tool visits the supplied URL and saves local screenshots/reports that may contain sensitive screen content or URL parameters. Use `--no-screenshots` for sensitive pages and review artifacts before sharing them. URL redaction and authenticated exploration safeguards are planned, not shipped.
+**Safety:** Only scan sites you control or have permission to test. The tool visits the supplied URL and saves local screenshots/reports that may contain sensitive screen content or URL parameters. Use `--no-screenshots` for sensitive pages and review artifacts before sharing them. Known URL query/fragment redaction is present, but full pixel/DOM masking and authenticated automation are not shipped.
 
 ## Roadmap
 
-See [M1/M2 validation evidence](docs/VALIDATION_M1_M2.md) and [docs/ROADMAP.md](docs/ROADMAP.md) for implemented features, independently verified CI, and outstanding acceptance gates. [Product vision](docs/PRODUCT_VISION.md), [detection reliability](docs/DETECTION_RELIABILITY.md), and [architecture](docs/ARCHITECTURE_NEXT.md) distinguish the shipped core from planned M3/M4 route exploration and baseline-aware CI.
+See [M3 validation evidence](docs/VALIDATION_M3.md), [M1/M2 validation evidence](docs/VALIDATION_M1_M2.md) and [docs/ROADMAP.md](docs/ROADMAP.md) for implemented features, independently verified CI, and outstanding acceptance gates. [Product vision](docs/PRODUCT_VISION.md), [detection reliability](docs/DETECTION_RELIABILITY.md), and [architecture](docs/ARCHITECTURE_NEXT.md) distinguish the shipped core from implemented M3 route/UI-state exploration and planned M4 baseline-aware CI.

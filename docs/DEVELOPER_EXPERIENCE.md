@@ -1,6 +1,6 @@
 # Developer experience specification (proposed)
 
-Status: M1/M2 alpha has `doctor` and `scan` including `--responsive`. The `init`, `audit`, `compare`, profile systems, multi-route coverage and full sensitive-data masking described below are proposed only.
+Status: M1–M3 alpha has `doctor` and `scan`, including `--responsive`, `--routes`, `--discover` and `--explore`. The `init`, `audit`, `compare`, profile systems and full sensitive-data masking described below remain proposed only.
 
 ## Four-minute onboarding target
 1. User installs or runs from npm (when published) and starts a trusted dev server.
@@ -23,7 +23,7 @@ Current source commands: `node bin/breakpoint-doctor.js doctor http://localhost:
 |---|---|---|
 | `quick` (default) | One route, fixed representative widths, safe passive checks, tight time budget | Stable errors, not uncertain warnings |
 | `responsive` (via `--responsive`, available) | Quick + sampled adaptive width brackets for layout issues | Explicit budget |
-| `explore` | Bounded same-origin page discovery, manually allowlisted non-mutating UI state changes | Requires permission/config |
+| `explore` (via `--explore`, alpha) | Bounded approved page discovery, semantic UI-state checks | Explicit opt-in and budgets |
 | `ci` | Reproducible settings + baseline comparison + strict artifacts/exit policy | New confirmed high only by default |
 
 ## The report is the product

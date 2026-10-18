@@ -19,6 +19,10 @@ export function validateScan(scan, { requireComplete = false } = {}) {
       !scan.coverage || typeof scan.coverage.completed !== 'number' || !['clean','issues','partial','error'].includes(scan.status)) {
     throw new Error('Expected a Breakpoint Doctor scan report with supported schemaVersion 1.');
   }
+  if (!scan.ruleConfiguration || !Array.isArray(scan.ruleConfiguration.available) ||
+      !Array.isArray(scan.ruleConfiguration.disabled) || !scan.ruleConfiguration.severityOverrides) {
+    throw new Error('Scan lacks rule configuration; rerun with the current Breakpoint Doctor version.');
+  }
   if (requireComplete && (scan.status === 'partial' || scan.status === 'error' ||
       scan.coverage.completed !== scan.coverage.requested ||
       scan.exploration?.skippedRoutes?.length || scan.exploration?.skippedActions?.length)) {
@@ -45,6 +49,7 @@ export function approveBaseline(scan) {
     // Human approval occurs by explicitly running the baseline approve command.
     source:{ toolVersion:scan.version, origin: new URL(scan.url).origin, pathname:new URL(scan.url).pathname },
     coverage: coverageKeys(scan),
+    ruleConfiguration:scan.ruleConfiguration,
     findings:scan.findings.map(f=>({
       fingerprint:fingerprint(f),ruleId:f.ruleId,route:f.route || new URL(f.reproduction.url).pathname,
       statePath:f.statePath || 'initial', selector:f.selector, severity:f.severity,confidence:f.confidence
@@ -54,19 +59,20 @@ export function approveBaseline(scan) {
 export function validateBaseline(b) {
   if (!b || b.kind!=='breakpoint-doctor-approved-baseline' || b.baselineSchema!==BASELINE_SCHEMA ||
       b.scanSchema!==1 || !Array.isArray(b.coverage) || !Array.isArray(b.findings) || !b.source ||
-      typeof b.source.origin !== 'string') throw new Error('Invalid/incompatible approved baseline schema.');
+      typeof b.source.origin !== 'string' || !b.ruleConfiguration) throw new Error('Invalid/incompatible approved baseline schema.');
   for (const f of b.findings) if (!/^[a-f0-9]{20}$/.test(f.fingerprint) ||
       !['high','medium','info'].includes(f.severity) || !['confirmed','suspected','review'].includes(f.confidence)) {
     throw new Error('Approved baseline has invalid entries.');
   }
   return b;
 }
-export function compareBaseline(baseline, scan, {failOn='new-confirmed-high',strictCoverage=true}={}) {
+export function compareBaseline(baseline, scan, {failOn='new-confirmed-high',strictCoverage=true,recheck=null}={}) {
   validateBaseline(baseline);
   validateScan(scan);
   if (!['new-confirmed-high','new-confirmed-medium','none'].includes(failOn)) throw new Error('Invalid --fail-on policy.');
   const comparable = new URL(scan.url).hostname === new URL(baseline.source.origin).hostname &&
     new URL(scan.url).pathname === baseline.source.pathname;
+  const matchingRules = JSON.stringify(baseline.ruleConfiguration) === JSON.stringify(scan.ruleConfiguration);
   const oldCoverage = new Set(baseline.coverage);
   const newCoverage = new Set(coverageKeys(scan));
   const missing = [...oldCoverage].filter(x=>!newCoverage.has(x));
@@ -75,38 +81,59 @@ export function compareBaseline(baseline, scan, {failOn='new-confirmed-high',str
     scan.coverage.completed===scan.coverage.requested && !scan.exploration?.skippedRoutes?.length &&
     !scan.exploration?.skippedActions?.length;
   // A coverage mismatch must not be silently represented as a resolved issue.
-  const valid = comparable && complete && !missing.length && !added.length;
+  const valid = comparable && matchingRules && complete && !missing.length && !added.length;
   const old = new Map(baseline.findings.map(f=>[f.fingerprint,f]));
   const curr = new Map(scan.findings.map(f=>[fingerprint(f),f]));
-  const counts = {new:0,existing:0,resolved:0,changedConfidence:0};
+  if (recheck) validateScan(recheck);
+  const recheckSameScope = !recheck || (
+    new URL(recheck.url).hostname === new URL(scan.url).hostname &&
+    new URL(recheck.url).pathname === new URL(scan.url).pathname &&
+    JSON.stringify(recheck.ruleConfiguration) === JSON.stringify(scan.ruleConfiguration) &&
+    recheck.status !== 'error' && recheck.status !== 'partial' &&
+    recheck.coverage.completed === recheck.coverage.requested &&
+    JSON.stringify(coverageKeys(recheck)) === JSON.stringify(coverageKeys(scan))
+  );
+  const observedAgain = recheck ? new Map(recheck.findings.map(f=>[fingerprint(f),f])) : null;
+  const counts = {new:0,existing:0,resolved:0,changedConfidence:0,flaky:0};
   const findings=[];
   for (const [key, f] of curr) {
     const prev=old.get(key);
-    const status= !prev ? 'new' : prev.confidence!==f.confidence ? 'changed-confidence' : 'existing';
+    const status = observedAgain && recheckSameScope && !observedAgain.has(key) ? 'flaky' :
+      !prev ? 'new' : prev.confidence!==f.confidence ? 'changed-confidence' : 'existing';
     if (status==='changed-confidence') counts.changedConfidence++; else counts[status]++;
     findings.push({fingerprint:key,status,ruleId:f.ruleId,severity:f.severity,confidence:f.confidence,
       route:f.route || new URL(f.reproduction?.url).pathname,statePath:f.statePath||'initial',selector:f.selector,
       widths:f.widths,reproduction:f.reproduction});
   }
-  // Only identify resolved when all previous test states have been rerun.
-  if (valid) for (const [key,f] of old) if (!curr.has(key)) {
+  if (observedAgain && recheckSameScope) for (const [key,f] of observedAgain) if (!curr.has(key)) {
+    counts.flaky++;
+    findings.push({fingerprint:key,status:'flaky',ruleId:f.ruleId,severity:f.severity,confidence:f.confidence,
+      route:f.route || new URL(f.reproduction?.url).pathname,statePath:f.statePath||'initial',
+      selector:f.selector,widths:f.widths,reproduction:f.reproduction});
+  }
+  // Only identify resolved when all previous test states were observed, including optional recheck.
+  if (valid && recheckSameScope) for (const [key,f] of old) if (!curr.has(key) && !observedAgain?.has(key)) {
     counts.resolved++;
     findings.push({...f,status:'resolved'});
   }
   const blockingNew = findings.filter(f=>f.status==='new' && f.confidence==='confirmed' &&
     (f.severity==='high' || (failOn==='new-confirmed-medium' && f.severity==='medium')));
-  const gate = !valid && strictCoverage ? 'incomplete' : blockingNew.length && failOn!=='none' ? 'regression' : 'pass';
+  // Scope or rule differences invalidate the comparison even when partial results are allowed.
+  const gate = (!comparable || !matchingRules || !recheckSameScope || (!valid && strictCoverage)) ? 'incomplete' :
+    blockingNew.length && failOn!=='none' ? 'regression' : 'pass';
   return {kind:'breakpoint-doctor-comparison',schemaVersion:1,generatedAt:new Date().toISOString(),
     gate,policy:failOn,comparable:valid,counts,blockingNew:blockingNew.length,missingCoverage:missing,addedCoverage:added,
     warnings:!comparable?['Baseline target host/path differs; do not trust regression comparisons.']:
+      !matchingRules?['Rule configuration differs; reapprove baseline only after reviewing changed checks.']:
+      !recheckSameScope?['Repeat scan changed coverage or was incomplete; no reliable regression verdict.']:
       !valid?['Coverage differs or scan incomplete; no issues are declared resolved.']:[],
     findings};
 }
 export function comparisonMarkdown(result) {
   const lines=['## Breakpoint Doctor — regression comparison','',
     '**Gate:** '+result.gate+' · **Policy:** '+result.policy+' · **Comparable coverage:** '+(result.comparable?'yes':'no'),
-    '', '| New | Existing | Resolved | Changed confidence |','|---:|---:|---:|---:|',
-    '| '+result.counts.new+' | '+result.counts.existing+' | '+result.counts.resolved+' | '+result.counts.changedConfidence+' |',
+    '', '| New | Existing | Resolved | Changed confidence | Inconsistent across rechecks |','|---:|---:|---:|---:|---:|',
+    '| '+result.counts.new+' | '+result.counts.existing+' | '+result.counts.resolved+' | '+result.counts.changedConfidence+' | '+(result.counts.flaky||0)+' |',
     '', ...result.warnings.map(w=>'> '+w.replace(/[\r\n]/g,' ')),''];
   for(const f of result.findings.filter(x=>x.status==='new').slice(0,30)){
     lines.push('- '+f.severity+' / '+f.confidence+' — `'+[f.ruleId,f.route,f.statePath].map(v=>String(v||'').replace(/[`|\r\n]/g,' ')).join(' · ')+'`');

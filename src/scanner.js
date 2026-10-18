@@ -228,6 +228,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.5.0-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,
     warnings, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
+    ruleConfiguration:{available:Object.keys(RULES).sort(),disabled:[...disabledRules].sort(),severityOverrides:Object.fromEntries(Object.entries(severityOverrides).sort())},
     exploration: {enabled:explore, mode:discover ? 'approved-link-discovery' : 'explicit-routes', routes:routeStats,
       skippedRoutes:selection.skipped, skippedActions, inspectedStates:stateViews.length, attemptedStates,
       maxPages, maxDepth, maxStates},

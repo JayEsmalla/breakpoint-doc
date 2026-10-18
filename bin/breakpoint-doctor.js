@@ -34,6 +34,7 @@ const HELP = [
   '  --max-states 20                       Total UI states to inspect (1–40)',
   '  --fail-on new-confirmed-high          compare policy: new-confirmed-high|new-confirmed-medium|none',
   '  --allow-partial                        Compare incomplete scans without claiming resolved issues',
+  '  --recheck second-report.json            Repeated scan; mark inconsistent observations as flaky',
   '  --help                                 Show this help',
   '',
   'Exit codes: 0 = no confirmed blocking issues, 1 = confirmed high/medium issues,',
@@ -57,10 +58,10 @@ export function parseArgs(argv) {
     for(let i=approve?3:3;i<argv.length;i++){
       const flag=argv[i];
       if (!approve && flag==='--allow-partial') { args.strictCoverage=false; continue; }
-      if (flag==='--out' || (!approve && flag==='--fail-on')) {
+      if (flag==='--out' || (!approve && ['--fail-on','--recheck'].includes(flag))) {
         const value=argv[++i];
         if(!value || value.startsWith('--')) throw new Error('Missing '+flag+' value.');
-        if(flag==='--out') args.out=value; else args.failOn=value;
+        if(flag==='--out') args.out=value; else if(flag==='--recheck') args.recheck=value; else args.failOn=value;
       } else throw new Error('Unknown '+command+' option: '+flag);
     }
     if (approve && (!args.out || args.out.endsWith('/'))) throw new Error('Baseline filename is required.');
@@ -143,7 +144,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     }
     else if (args.command === 'compare') {
       const comparison = compareBaseline(await readJson(args.baseline), await readJson(args.report),
-        {failOn:args.failOn,strictCoverage:args.strictCoverage});
+        {failOn:args.failOn,strictCoverage:args.strictCoverage,
+          recheck:args.recheck ? await readJson(args.recheck) : null});
       await mkdir(path.dirname(resolve(args.out)), {recursive:true});
       await writeJson(args.out, comparison);
       const summary = comparisonMarkdown(comparison);

@@ -19,6 +19,7 @@ const makeScan=(findings=[], opts={})=>({
   status:opts.status|| (findings.length?'issues':'clean'),
   viewports:[{route:'/',width:320,statePath:'initial',status:'complete',issues:[]}],
   findings,coverage:{completed:1,requested:1},
+  ruleConfiguration:{available:['page-overflow','javascript-error','small-target'],disabled:[],severityOverrides:{}},
   exploration:{skippedRoutes:[],skippedActions:[]}
 });
 test('explicit approval, new/old/resolved and policy gating',()=>{
@@ -59,6 +60,9 @@ test('incomplete scan and mismatched scope never silently resolve issues',()=>{
   assert.equal(compareBaseline(baseline,mismatched).gate,'incomplete');
   assert.equal(compareBaseline(baseline,mismatched,{strictCoverage:false}).gate,'pass');
   assert.equal(compareBaseline(baseline,mismatched,{strictCoverage:false}).counts.resolved,0);
+  const disabled=makeScan(); disabled.ruleConfiguration.disabled=['page-overflow'];
+  assert.equal(compareBaseline(baseline,disabled,{strictCoverage:false}).gate,'incomplete');
+  assert.equal(compareBaseline(baseline,makeScan([],{url:'http://example.com/'}),{strictCoverage:false}).gate,'incomplete');
 });
 test('confidence changes are not falsely called flaky or new',()=>{
   const baseline=approveBaseline(makeScan([found('page-overflow','#wide')]));
@@ -67,6 +71,22 @@ test('confidence changes are not falsely called flaky or new',()=>{
   assert.equal(result.counts.new,0);
   assert.equal(result.gate,'pass');
   assert.throws(()=>compareBaseline({...baseline,baselineSchema:999},makeScan()),/Invalid/);
+});
+test('optional independently repeated scan distinguishes inconsistent observations',()=>{
+  const baseline=approveBaseline(makeScan());
+  const once=makeScan([found('page-overflow','#intermittent')]);
+  const repeat=makeScan();
+  const inconsistent=compareBaseline(baseline,once,{recheck:repeat});
+  assert.equal(inconsistent.gate,'pass');
+  assert.equal(inconsistent.counts.flaky,1);
+  assert.equal(inconsistent.blockingNew,0);
+  const consistent=compareBaseline(baseline,once,{recheck:makeScan([found('page-overflow','#intermittent')])});
+  assert.equal(consistent.gate,'regression');
+  assert.equal(consistent.counts.new,1);
+  const altered=makeScan([], {status:'partial'});
+  assert.equal(compareBaseline(baseline,once,{recheck:altered}).gate,'incomplete');
+  const mismatched=makeScan(); mismatched.viewports[0].width=768;
+  assert.equal(compareBaseline(baseline,once,{recheck:mismatched}).gate,'incomplete');
 });
 test('CLI approval and compare produce artifact and expected exit code',async ()=>{
   const cwd=await directory(), scan=makeScan([found('page-overflow','#wide')]);

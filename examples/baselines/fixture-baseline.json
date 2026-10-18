@@ -2,7 +2,7 @@
   "kind": "breakpoint-doctor-approved-baseline",
   "baselineSchema": 1,
   "scanSchema": 1,
-  "approvedAt": "2026-10-18T18:53:19.910Z",
+  "approvedAt": "2026-10-18T18:58:48.999Z",
   "source": {
     "toolVersion": "0.5.0-alpha.1",
     "origin": "http://127.0.0.1:45271",
@@ -14,5 +14,19 @@
     "/|390|initial",
     "/|768|initial"
   ],
+  "ruleConfiguration": {
+    "available": [
+      "broken-image",
+      "clipped-control",
+      "failed-request",
+      "http-error",
+      "javascript-error",
+      "occluded-control",
+      "page-overflow",
+      "small-target"
+    ],
+    "disabled": [],
+    "severityOverrides": {}
+  },
   "findings": []
 }

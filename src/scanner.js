@@ -250,7 +250,7 @@ export async function scanSite({ url, widths = DEFAULT_WIDTHS, out = './breakpoi
   }
   const status = completed === 0 ? 'error' : completed < viewports.length || selection.skipped.length || warnings.length || viewports.some(v => v.truncated) || stateViews.some(v => v.truncated) || skippedActions.length > 0 ? 'partial' :
     findings.length ? 'issues' : 'clean';
-  const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.7.0-alpha.1', scannedAt: new Date().toISOString(),
+  const data = { schemaVersion: 1, name: 'Breakpoint Doctor', version: '0.7.1-alpha.1', scannedAt: new Date().toISOString(),
     url: publicUrl(target.href), status, strictCoverage, screenshotsEnabled: screenshots,
     warnings, notices, adaptive: responsive, adaptiveDisclaimer: adaptive?.disclaimer,
     ruleConfiguration:{available:Object.keys(RULES).sort(),disabled:[...disabledRules].sort(),severityOverrides:Object.fromEntries(Object.entries(severityOverrides).sort())},

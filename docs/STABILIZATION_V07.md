@@ -14,6 +14,18 @@
 - Portable release workflow now runs Node 22 compatibility validation before the Windows/Linux/macOS Node 24 packages can be published. Every development release stays an **unsigned prerelease**.
 - Plain JavaScript, no TypeScript introduced.
 
+## Additional v0.7.1 hardening
+
+- Baseline comparison rejects protocol differences and nonlocal port changes; ephemeral localhost ports remain usable in continuous integration.
+- Repeated scans clean up only known scanner-generated files, preventing stale screenshots/crops from being shown as new evidence.
+- Interaction exploration uses a fresh disposable page for every action. Its request blocker stays active until page closure, including requests scheduled after the click; test coverage includes deliberately delayed POST attempts.
+- Bounded DOM TreeWalker and overflow selection reduce pathological work on very large pages; over-limit scans are explicitly partial.
+- Unique `data-testid`/`data-qa` locators are preferred when present, reducing selector churn between revisions.
+- Console/metadata scrubbers mask common credential patterns and emails on a best-effort basis. Report CSP restricts executable active content while preserving local screenshot display.
+- Coverage numbers now distinguish completed from requested viewports; high-priority grouped findings appear before lower-priority detail.
+
+These improvements mitigate known issues but **do not certify** arbitrary JavaScript as safe, achieve total report redaction, or substitute for independently reviewed production-like benchmarks.
+
 ## Verification and limitations
 
 Validation consists of local automated Chromium/HTTP fixtures, JavaScript syntax checks, npm packaging and GitHub OS matrix tests. Check the *latest* GitHub CI run before claiming cross-platform release success.

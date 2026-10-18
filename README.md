@@ -4,7 +4,7 @@
 
 A JavaScript CLI that loads a website in Chromium across viewport widths, identifies likely responsive problems plus basic browser runtime/resource failures, and generates an evidence-backed HTML + JSON report. The future vision is **autonomous frontend QA**: safe route/UI-state exploration, width-boundary diagnosis, and regression reporting.
 
-> **Status:** v0.7.0-alpha.1 stabilization preview; M1–M4 implemented and reliability refinement underway. Independent user/real-site, privacy and npm-publication gates remain open. **Not a v1 release.** Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
+> **Status:** v0.7.1-alpha.1 stabilization preview; M1–M4 implemented and reliability refinement underway. Independent user/real-site, privacy and npm-publication gates remain open. **Not a v1 release.** Not published on npm. Detection remains heuristic and requires developer review; real-site accuracy and cross-platform release validation are pending.
 
 ## Download without cloning or installing Node
 
@@ -148,7 +148,7 @@ The first priority is a **trustworthy low-friction scan**: explicit scan status,
 
 **Safety:** Only scan sites you control or have permission to test. The tool visits the supplied URL and saves local screenshots/reports that may contain sensitive screen content or URL parameters. Use `--no-screenshots` for sensitive pages and review artifacts before sharing them. Known URL query/fragment redaction is present, but full pixel/DOM masking and authenticated automation are not shipped.
 
-**Stabilization evidence:** see [v0.7 development and qualification gates](docs/STABILIZATION_V07.md). Real-site precision is **not** established. The [reviewed-case benchmarking protocol](benchmarks/README.md) and example labels are available, but the example is synthetic and cannot support external accuracy claims.
+**Stabilization evidence:** see [v0.7.1 hardening and qualification gates](docs/STABILIZATION_V07.md). Real-site precision is **not** established. The [reviewed-case benchmarking protocol](benchmarks/README.md) and example labels are available, but the example is synthetic and cannot support external accuracy claims.
 
 ## Roadmap
 

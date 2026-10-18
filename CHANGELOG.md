@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1-alpha.1] — Stabilization hardening
+
+- More accurate target matching in regression baselines: reject different protocols and production ports while allowing local ephemeral ports.
+- Delete only scanner-generated artifacts before repeat scans so stale screenshots cannot be attributed to new results.
+- Isolate each optional UI interaction in a disposable browser page; keep network blocking active until the page closes to prevent delayed callbacks from sending requests after the click.
+- Bound DOM traversal and overflow-candidate selection in extremely large documents. Report partial coverage when the inspection limit is exceeded.
+- Favor unique semantic test locators when available, making issue fingerprints less sensitive to inserted sibling elements.
+- Improve text-based credential/email scrubbing (best effort, **not full secret redaction**) and add a strict Content Security Policy to the static HTML report.
+- Show completed/attempted viewport counts and prioritized findings earlier in reports.
+- Retain open release gates for independently reviewed real websites, user onboarding, signed binaries and complete security/privacy review.
+
+
 ## [0.7.0-alpha.1] — Stabilization preview
 
 - Never label failed viewports as clean; make incomplete coverage explicit.

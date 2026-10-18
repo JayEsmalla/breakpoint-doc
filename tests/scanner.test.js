@@ -40,7 +40,7 @@ test('CLI validates widths and URLs', () => {
 test('failed viewport is never represented as clean in a report', () => {
   const html = renderHtmlReport({
     schemaVersion:1,version:'0.7.0-alpha.1',scannedAt:'2026-10-19',url:'http://localhost/',
-    status:'error',warnings:[],coverage:{completed:0,requested:1},
+    status:'error',findings:[],warnings:[],coverage:{completed:0,requested:1},
     viewports:[{route:'/',width:390,status:'error',issues:[],error:'HTTP 503',overflowPixels:0,visitedElements:0}]
   });
   assert.match(html,/Not tested — scan failed/);
@@ -48,6 +48,8 @@ test('failed viewport is never represented as clean in a report', () => {
   assert.ok(!html.includes('Looking good here.'));
   assert.ok(html.includes('Incomplete inspection:'));
   assert.ok(html.includes('Content-Security-Policy'));
+  assert.ok(html.includes('0/1</strong><span>Viewports completed'));
+  assert.ok(html.includes('skipped or untested checks cannot be considered clean'));
   assert.ok(!html.includes('No blocking issues</span>'));
   assert.ok(!html.includes('0px document overflow · 0 DOM elements inspected'));
 });
